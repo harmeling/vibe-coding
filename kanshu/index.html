@@ -75,12 +75,40 @@
       opacity: 0.5;
       cursor: default;
     }
+    .move-log {
+      margin-top: 1rem;
+      max-width: 480px;
+    }
+    .move-log label {
+      display: block;
+      font-size: 0.85rem;
+      color: #555;
+      margin-bottom: 0.25rem;
+    }
+    .move-log textarea {
+      width: 100%;
+      font-family: ui-monospace, "SF Mono", Consolas, monospace;
+      font-size: 0.85rem;
+      padding: 0.5rem;
+      border: 1px solid #d8d0bd;
+      background: #fff;
+      color: inherit;
+      resize: vertical;
+    }
+    .credit {
+      font-size: 0.65em;
+      font-weight: normal;
+      color: #888;
+    }
+    .credit a {
+      color: inherit;
+    }
   </style>
 </head>
 <body>
   <div id="app">
     <header>
-      <h1>監守 Kanshū</h1>
+      <h1>監守 Kanshū <span class="credit">(made by <a href="https://github.com/harmeling" target="_blank" rel="noopener">Stefan Harmeling</a>)</span></h1>
       <div class="controls">
         <label>Board size
           <select id="boardSizeSelect">
@@ -117,6 +145,11 @@
       <span id="hudTurn"></span>
       <span id="hudLastMove"></span>
       <span id="hudCaptures"></span>
+    </div>
+
+    <div class="move-log">
+      <label for="moveLog">Moves recorded so far</label>
+      <textarea id="moveLog" rows="12" spellcheck="false" readonly></textarea>
     </div>
 
     <video id="video" playsinline muted style="display:none"></video>

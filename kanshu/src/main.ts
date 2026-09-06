@@ -11,6 +11,8 @@ import { createEmptyBoard, diffBoard } from './game/boardState';
 import type { BoardDiffResult } from './game/boardState';
 import { buildSgf } from './game/sgf';
 import { formatBoardCoordinate } from './game/coords';
+import { formatMoveLog } from './game/moveLog';
+import type { MoveLogEntry } from './game/moveLog';
 import {
   clearCalibration,
   clearSgfText,
@@ -67,6 +69,7 @@ function initApp(): void {
   const hudTurn = byId<HTMLElement>('hudTurn');
   const hudLastMove = byId<HTMLElement>('hudLastMove');
   const hudCaptures = byId<HTMLElement>('hudCaptures');
+  const moveLogEl = byId<HTMLTextAreaElement>('moveLog');
 
   let settings = loadSettings();
   boardSizeSelect.value = String(settings.boardSize);
@@ -92,6 +95,7 @@ function initApp(): void {
   let internalBoard = createEmptyBoard(gridSize);
   let moveNumbers: (number | null)[] = new Array(gridSize).fill(null);
   const turns: BoardDiffResult[] = [];
+  const moveLogEntries: MoveLogEntry[] = [];
   let moveCounter = 0;
   let nextColor: StoneColor = 'black';
   let blackCaptures = 0;
@@ -123,6 +127,10 @@ function initApp(): void {
     );
   }
 
+  function renderMoveLog(): void {
+    moveLogEl.value = formatMoveLog(moveLogEntries);
+  }
+
   function updateDownloadLink(): void {
     if (downloadUrl) URL.revokeObjectURL(downloadUrl);
     const blob = new Blob([sgfText || '(;)'], { type: 'application/x-go-sgf' });
@@ -138,6 +146,7 @@ function initApp(): void {
     internalBoard = createEmptyBoard(gridSize);
     moveNumbers = new Array(gridSize).fill(null);
     turns.length = 0;
+    moveLogEntries.length = 0;
     moveCounter = 0;
     nextColor = 'black';
     blackCaptures = 0;
@@ -147,6 +156,7 @@ function initApp(): void {
     saveSgfText(sgfText);
     updateDownloadLink();
     refreshHud();
+    renderMoveLog();
     renderDigitalBoard(boardCanvas, internalBoard, boardSize, moveNumbers);
   }
 
@@ -208,19 +218,24 @@ function initApp(): void {
       else whiteCaptures++;
     }
 
-    for (const placement of diff.placements) {
+    diff.placements.forEach((placement, i) => {
       moveCounter++;
       moveNumbers[placement.index] = moveCounter;
-      lastMoveDescription = `${placement.color === 'black' ? 'Black' : 'White'} played ${formatBoardCoordinate(placement.index, boardSize)}`;
-      speak(buildMoveAnnouncement(placement.color, placement.index, boardSize, diff.removals.length), settings.voiceAnnouncements);
+      const coordinate = formatBoardCoordinate(placement.index, boardSize);
+      // Captures ride along on the first placement of this diff, same convention as buildSgf.
+      const capturedCount = i === 0 ? diff.removals.length : 0;
+      lastMoveDescription = `${placement.color === 'black' ? 'Black' : 'White'} played ${coordinate}`;
+      moveLogEntries.push({ number: moveCounter, color: placement.color, coordinate, capturedCount });
+      speak(buildMoveAnnouncement(placement.color, placement.index, boardSize, capturedCount), settings.voiceAnnouncements);
       nextColor = placement.color === 'black' ? 'white' : 'black';
-    }
+    });
 
     sgfText = buildSgf(turns, boardSize);
     saveSgfText(sgfText);
     updateDownloadLink();
     playClick(settings.clickSound);
     renderDigitalBoard(boardCanvas, internalBoard, boardSize, moveNumbers);
+    renderMoveLog();
     refreshHud();
   }
 
@@ -353,6 +368,7 @@ function initApp(): void {
 
   renderDigitalBoard(boardCanvas, internalBoard, boardSize, moveNumbers);
   refreshHud();
+  renderMoveLog();
   updateDownloadLink();
 
   if ('serviceWorker' in navigator) {

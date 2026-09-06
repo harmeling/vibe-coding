@@ -1,4 +1,5 @@
 import { intersectionPoints } from '../grid/gridEngine';
+import type { DetectedQuad } from '../calibration/autoDetect';
 import type { BoardSize, IntersectionState } from '../types';
 
 /** Draws the clean digital board: grid lines, stones, and each stone's move number. */
@@ -84,4 +85,23 @@ export function renderCalibrationOverlay(canvas: HTMLCanvasElement, points: read
     ctx.lineTo(points[i + 1].x, points[i + 1].y);
     ctx.stroke();
   }
+}
+
+/** Draws the live auto-detected board quad as a dashed outline, so the user can see what "Auto calibrate" would accept. */
+export function renderDashedQuad(canvas: HTMLCanvasElement, quad: DetectedQuad): void {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  ctx.save();
+  ctx.setLineDash([8, 6]);
+  ctx.strokeStyle = '#ff5c8a';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(quad.topLeft.x, quad.topLeft.y);
+  ctx.lineTo(quad.topRight.x, quad.topRight.y);
+  ctx.lineTo(quad.bottomRight.x, quad.bottomRight.y);
+  ctx.lineTo(quad.bottomLeft.x, quad.bottomLeft.y);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.restore();
 }

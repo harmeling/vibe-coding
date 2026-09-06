@@ -1,4 +1,5 @@
 import { computeHomography } from './homography';
+import { orderCorners } from './orderCorners';
 import { saveCalibration } from '../storage';
 import type { CalibrationData } from '../storage';
 import type { BoardSize, Point } from '../types';
@@ -11,11 +12,10 @@ export interface CalibrationConfig {
 }
 
 /**
- * Collects 4 pointerdown clicks on `canvas` — click order matters: top-left, top-right,
- * bottom-right, bottom-left (same convention as the legacy `calibrate.py` prototype) — and
- * turns them into a homography + persists it. Corner-order auto-detection (like the old
- * prototype's `order_points`) was left out for this first pass; if strict click ordering turns
- * out to be error-prone with a real camera, add it then (postponed, needs real-board testing).
+ * Collects 4 pointerdown clicks on `canvas`, in any order — `orderCorners` sorts them into
+ * top-left/top-right/bottom-right/bottom-left before computing the homography — and turns them
+ * into a homography + persists it. `completeWith` is also called directly (bypassing clicks
+ * entirely) when the user accepts an auto-detected quad instead.
  */
 export class CalibrationController {
   private points: Point[] = [];
@@ -29,7 +29,7 @@ export class CalibrationController {
       x: (event.clientX - rect.left) * scaleX,
       y: (event.clientY - rect.top) * scaleY,
     });
-    if (this.points.length === 4) this.finish();
+    if (this.points.length === 4) this.completeWith(this.points as [Point, Point, Point, Point]);
   };
 
   constructor(private readonly canvas: HTMLCanvasElement, private readonly config: CalibrationConfig) {
@@ -52,8 +52,9 @@ export class CalibrationController {
     this.canvas.removeEventListener('pointerdown', this.handlePointerDown);
   }
 
-  private finish(): void {
-    const src = this.points as [Point, Point, Point, Point];
+  /** Computes and persists the calibration from any 4 corner points, in any order. */
+  completeWith(points: readonly [Point, Point, Point, Point]): void {
+    const [topLeft, topRight, bottomRight, bottomLeft] = orderCorners(points);
     const size = this.config.targetSize;
     const dst: [Point, Point, Point, Point] = [
       { x: 0, y: 0 },
@@ -61,6 +62,7 @@ export class CalibrationController {
       { x: size - 1, y: size - 1 },
       { x: 0, y: size - 1 },
     ];
+    const src: [Point, Point, Point, Point] = [topLeft, topRight, bottomRight, bottomLeft];
     const matrix = computeHomography(src, dst);
     const data: CalibrationData = { matrix, boardSize: this.config.boardSize, points: src };
     saveCalibration(data);

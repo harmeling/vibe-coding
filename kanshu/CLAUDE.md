@@ -36,14 +36,30 @@ Non-negotiable constraints from `spec.md`:
 
 All of `PLAN.md`'s Steps 0-9 are implemented; Step 10 (real-board validation/threshold tuning)
 is intentionally postponed until a physical board is available for testing. The pure-logic
-layer (homography, warp, grid classification/debounce, board diffing, SGF, storage — Steps
-1-5) is fully covered by Vitest (44 tests). The browser-glue layer (camera, calibration UI,
+layer (homography, warp, grid classification/debounce, board diffing, SGF, storage, corner
+ordering, auto-detection — Steps 1-6) is fully covered by Vitest (49 tests). The browser-glue
+layer (camera, calibration UI,
 pipeline wiring, canvas rendering, sound/speech, PWA manifest — Steps 6-9) type-checks and
 builds cleanly but **has not been manually smoke-tested with a live camera by anyone yet** —
 see the `⚠️` markers in `PLAN.md` for exactly what to try first. Read `PLAN.md` before assuming
 any module or behavior is more finished than it says.
 
 The legacy `calibrate.py`/`spec-old.md` Python prototype is reference-only, not to be extended.
+
+## Known limitations (by design, for now)
+
+- **No camera-movement tracking.** Calibration computes one homography matrix and caches it;
+  every later frame reuses that same fixed matrix until "Recalibrate" is clicked. If the camera
+  or board moves after calibrating, the cached warp silently becomes wrong — there's no
+  drift detection or re-localization. Matches the spec's assumption of a fixed camera position
+  for the session; revisit only if real-world testing shows this is too fragile.
+- **No distinction between a capture and a manual correction ("undo").** `diffBoard` (Step 3)
+  treats every stone→empty transition as a removal and records it — correctly, for actual
+  captures. But it can't tell a legitimate capture apart from someone picking up a
+  misplaced stone to fix it; both look identical from the camera's perspective. There's no
+  explicit undo command. The live board state stays correct either way (it's diff-based), but
+  the recorded SGF will show "placed, then later removed" rather than "this move never
+  happened" for a manual correction.
 
 ## Environment / commands
 

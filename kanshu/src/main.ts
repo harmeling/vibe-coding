@@ -1,5 +1,7 @@
-import { startCamera } from './camera';
+import { startCamera, stopCamera } from './camera';
 import { captureVideoFrame, drawPixelBuffer } from './frame';
+import { detectBoardQuad } from './calibration/autoDetect';
+import type { DetectedQuad } from './calibration/autoDetect';
 import { CalibrationController } from './calibration/calibration';
 import { invertMatrix3x3 } from './calibration/homography';
 import { warpFrame } from './calibration/warp';
@@ -19,11 +21,15 @@ import {
   loadSgfText,
 } from './storage';
 import type { CalibrationData } from './storage';
-import { renderCalibrationOverlay, renderDigitalBoard } from './ui/render';
+import { renderCalibrationOverlay, renderDashedQuad, renderDigitalBoard } from './ui/render';
 import { updateHud } from './ui/hud';
 import { playClick } from './ui/sound';
 import { buildMoveAnnouncement, speak } from './ui/speech';
 import type { BoardSize, Matrix3x3, StoneColor } from './types';
+
+type AppPhase = 'idle' | 'calibrating' | 'running';
+/** How often to re-run auto-detection while calibrating (ms) — cheap enough at this cadence. */
+const AUTO_DETECT_INTERVAL_MS = 300;
 
 /** Side length, in pixels, of the square top-down buffer calibration warps into. */
 const ANALYSIS_SIZE = 480;
@@ -71,10 +77,13 @@ function initApp(): void {
   soundToggle.checked = settings.clickSound;
 
   let boardSize: BoardSize = settings.boardSize;
+  let phase: AppPhase = 'idle';
   let stream: MediaStream | null = null;
   let inverseMatrix: Matrix3x3 | null = null;
   let calibrationController: CalibrationController | null = null;
   let analysisTimer: ReturnType<typeof setInterval> | null = null;
+  let autoDetectTimer: ReturnType<typeof setInterval> | null = null;
+  let latestDetectedQuad: DetectedQuad | null = null;
   let previewRafHandle: number | null = null;
   let downloadUrl: string | null = null;
 
@@ -100,6 +109,13 @@ function initApp(): void {
       cameraFacingMode: facingSelect.value === 'user' ? 'user' : 'environment',
     };
     saveSettings(settings);
+  }
+
+  function setPhase(next: AppPhase): void {
+    phase = next;
+    startBtn.disabled = false;
+    startBtn.textContent = next === 'idle' ? 'Start camera' : next === 'calibrating' ? 'Auto calibrate' : 'Stop camera';
+    recalibrateBtn.disabled = next !== 'running';
   }
 
   function refreshHud(): void {
@@ -144,6 +160,7 @@ function initApp(): void {
           drawPixelBuffer(liveCanvas, warpFrame(raw, inverseMatrix, ANALYSIS_SIZE, ANALYSIS_SIZE));
         } else {
           drawPixelBuffer(liveCanvas, raw);
+          if (latestDetectedQuad) renderDashedQuad(liveCanvas, latestDetectedQuad);
           if (calibrationController) renderCalibrationOverlay(liveCanvas, calibrationController.pendingPoints);
         }
       } catch {
@@ -209,15 +226,24 @@ function initApp(): void {
     refreshHud();
   }
 
+  function stopAutoDetect(): void {
+    if (autoDetectTimer) {
+      clearInterval(autoDetectTimer);
+      autoDetectTimer = null;
+    }
+    latestDetectedQuad = null;
+  }
+
   function startPipeline(data: CalibrationData): void {
     inverseMatrix = invertMatrix3x3(data.matrix);
     baselines = null;
     calibrationController?.dispose();
     calibrationController = null;
-    recalibrateBtn.disabled = false;
+    stopAutoDetect();
     statusEl.textContent = 'Watching the board…';
     if (analysisTimer) clearInterval(analysisTimer);
     analysisTimer = setInterval(runAnalysisTick, settings.snapshotIntervalMs);
+    setPhase('running');
   }
 
   function startCalibrationFlow(): void {
@@ -226,16 +252,53 @@ function initApp(): void {
       clearInterval(analysisTimer);
       analysisTimer = null;
     }
-    statusEl.textContent = 'Click the board’s 4 corners, in order: top-left, top-right, bottom-right, bottom-left.';
+    statusEl.textContent =
+      'Auto-detecting the board — click "Auto calibrate" to accept the dashed outline, or click 4 corners directly on the video (any order).';
     calibrationController?.dispose();
     calibrationController = new CalibrationController(liveCanvas, {
       boardSize,
       targetSize: ANALYSIS_SIZE,
       onComplete: startPipeline,
     });
+    setPhase('calibrating');
+
+    stopAutoDetect();
+    autoDetectTimer = setInterval(() => {
+      if (!stream) return;
+      try {
+        latestDetectedQuad = detectBoardQuad(captureVideoFrame(video));
+      } catch {
+        // Video metadata not ready yet this tick; try again next tick.
+      }
+    }, AUTO_DETECT_INTERVAL_MS);
   }
 
-  startBtn.addEventListener('click', () => {
+  function handleAutoCalibrateClick(): void {
+    if (!latestDetectedQuad || !calibrationController) {
+      statusEl.textContent = 'No board detected yet — adjust the camera angle/lighting, or click 4 corners manually.';
+      return;
+    }
+    const { topLeft, topRight, bottomRight, bottomLeft } = latestDetectedQuad;
+    calibrationController.completeWith([topLeft, topRight, bottomRight, bottomLeft]);
+  }
+
+  function handleStopCamera(): void {
+    stopAutoDetect();
+    if (analysisTimer) {
+      clearInterval(analysisTimer);
+      analysisTimer = null;
+    }
+    calibrationController?.dispose();
+    calibrationController = null;
+    inverseMatrix = null;
+    stopCamera(stream);
+    stream = null;
+    video.srcObject = null;
+    setPhase('idle');
+    statusEl.textContent = 'Click "Start camera" to begin.';
+  }
+
+  function handleStartCamera(): void {
     startBtn.disabled = true;
     persistSettings();
     startCamera(video, { facingMode: settings.cameraFacingMode })
@@ -251,6 +314,12 @@ function initApp(): void {
         statusEl.textContent = `Could not start the camera: ${message}`;
         startBtn.disabled = false;
       });
+  }
+
+  startBtn.addEventListener('click', () => {
+    if (phase === 'idle') handleStartCamera();
+    else if (phase === 'calibrating') handleAutoCalibrateClick();
+    else handleStopCamera();
   });
 
   recalibrateBtn.addEventListener('click', () => {

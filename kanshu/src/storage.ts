@@ -64,7 +64,7 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  snapshotIntervalMs: 10_000,
+  snapshotIntervalMs: 1_000,
   boardSize: 19,
   voiceAnnouncements: false,
   clickSound: true,

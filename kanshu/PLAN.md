@@ -30,11 +30,16 @@ smoke tests, and only the very last step needs an actual physical board.
       Bonus, same reason it fits here: `src/calibration/warp.ts`'s `warpFrame` (the actual
       perspective-warp pixel remap) turned out to be pure too (buffer in, buffer out via the
       inverse homography), so it's implemented and tested now instead of waiting for Step 7.
-      *Verified:* Vitest (`gridEngine.test.ts` + `warp.test.ts`, 13 tests) — transient flip
-      does NOT confirm (simulated hand occlusion), sustained flip over two snapshots does,
-      capture (stone→empty) confirms the same way, warp reproduces identity, marks
-      out-of-bounds pixels transparent, and un-skews a synthetic perspective-distorted
-      checkerboard. No hardware needed.
+      Also `src/grid/motion.ts`'s `isMotionDetected` (frame-to-frame luminance diff, skips a
+      tick outright if something's moving across the board) — added later, in response to the
+      question "how do we avoid misreads from a hand passing over mid-snapshot", but it's the
+      same kind of pure buffer-in logic so it lives and is tested here too.
+      *Verified:* Vitest (`gridEngine.test.ts` + `warp.test.ts` + `motion.test.ts`, 19 tests) —
+      transient flip does NOT confirm (simulated hand occlusion), sustained flip over two
+      snapshots does, capture (stone→empty) confirms the same way, warp reproduces identity,
+      marks out-of-bounds pixels transparent, un-skews a synthetic perspective-distorted
+      checkerboard, and motion detection fires above threshold / stays quiet for minor
+      lighting flicker. No hardware needed.
 
 - [x] **Step 3 — Board-state diff** (`src/game/boardState.ts`). Flat board array; `diffBoard`
       diffs confirmed visual state against internal state → placements vs. captures.
@@ -87,15 +92,18 @@ smoke tests, and only the very last step needs an actual physical board.
       and separately try clicking 4 corners manually in a scrambled order, confirming both
       paths produce a plausible warped preview that survives a reload.
 
-- [x] **Step 7 — Pipeline wiring** (`src/main.ts`). Timer loop: frame capture → cached warp →
-      grid sample → confirm → board diff → SGF update → storage persist. The empty-board
-      baseline is captured from the first analysis tick after calibrating (assumes the board
-      is empty at that moment) rather than a separate dedicated step — flagged as a
-      simplification to revisit in Step 10 if it proves fragile.
+- [x] **Step 7 — Pipeline wiring** (`src/main.ts`). Timer loop (default every 1s, was 10s):
+      frame capture → cached warp → motion check (skip the tick if `isMotionDetected`, e.g. a
+      hand crossing the board) → grid sample → confirm → board diff → SGF update → storage
+      persist. The empty-board baseline is captured from the first non-motion analysis tick
+      after calibrating (assumes the board is empty at that moment) rather than a separate
+      dedicated step — flagged as a simplification to revisit in Step 10 if it proves fragile.
       *Implemented, ⚠️ not yet manually verified* — same caveat as Step 6. **Smoke test**:
       after calibrating, point the camera at any grid-like stand-in (paper with drawn
       intersections + coins as stones) and confirm placements/removals show up on the digital
-      board within one snapshot interval. Real-board accuracy tuning is deferred to Step 10.
+      board within one snapshot interval, and that waving a hand across it shows "Motion
+      detected..." instead of a bogus reading. Real-board threshold tuning for both the
+      classification and the motion check is deferred to Step 10.
 
 - [x] **Step 8 — UI/HUD/accessibility** (`src/ui/render.ts`, `hud.ts`, `sound.ts`, `speech.ts`,
       `src/game/moveLog.ts`). Dual canvas render (live/warped + numbered digital board), HUD

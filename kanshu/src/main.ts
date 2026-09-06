@@ -7,6 +7,7 @@ import { invertMatrix3x3 } from './calibration/homography';
 import { warpFrame } from './calibration/warp';
 import { advance, classifyBuffer, createInitialState, intersectionPoints, sampleLuminance } from './grid/gridEngine';
 import type { GridEngineState } from './grid/gridEngine';
+import { isMotionDetected } from './grid/motion';
 import { createEmptyBoard, diffBoard } from './game/boardState';
 import type { BoardDiffResult } from './game/boardState';
 import { buildSgf, parseSgf } from './game/sgf';
@@ -27,7 +28,7 @@ import { renderCalibrationOverlay, renderDashedQuad, renderDigitalBoard } from '
 import { updateHud } from './ui/hud';
 import { playClick } from './ui/sound';
 import { buildMoveAnnouncement, speak } from './ui/speech';
-import type { BoardSize, Matrix3x3, StoneColor } from './types';
+import type { BoardSize, Matrix3x3, PixelBuffer, StoneColor } from './types';
 
 type AppPhase = 'idle' | 'calibrating' | 'running';
 /** How often to re-run auto-detection while calibrating (ms) — cheap enough at this cadence. */
@@ -42,6 +43,13 @@ const GRID_MARGIN = ANALYSIS_SIZE * 0.08;
  * against an actual board is exactly the postponed Step 10 in PLAN.md.
  */
 const DEFAULT_THRESHOLDS = { high: 175, low: 70, alpha: 22 };
+/**
+ * Average per-pixel luminance difference (0-255 scale) above which two consecutive snapshots
+ * are considered "something is moving" (a hand, most likely) and this tick's classification is
+ * skipped rather than risk reading a blurry/occluded frame. Starting value only — see
+ * DEFAULT_THRESHOLDS above for the same caveat.
+ */
+const MOTION_THRESHOLD = 12;
 
 function byId<T extends HTMLElement>(id: string): T {
   const el = document.getElementById(id);
@@ -94,6 +102,7 @@ function initApp(): void {
   let gridSize = boardSize * boardSize;
   let gridState: GridEngineState = createInitialState(gridSize);
   let baselines: number[] | null = null;
+  let previousWarpedFrame: PixelBuffer | null = null;
   let internalBoard = createEmptyBoard(gridSize);
   let moveNumbers: (number | null)[] = new Array(gridSize).fill(null);
   const turns: BoardDiffResult[] = [];
@@ -110,7 +119,7 @@ function initApp(): void {
 
   function persistSettings(): void {
     settings = {
-      snapshotIntervalMs: Math.max(2, Number(intervalInput.value) || 10) * 1000,
+      snapshotIntervalMs: Math.max(1, Number(intervalInput.value) || 1) * 1000,
       boardSize,
       voiceAnnouncements: voiceToggle.checked,
       clickSound: soundToggle.checked,
@@ -215,6 +224,15 @@ function initApp(): void {
     }
 
     const warped = warpFrame(raw, inverseMatrix, ANALYSIS_SIZE, ANALYSIS_SIZE);
+
+    if (previousWarpedFrame && isMotionDetected(previousWarpedFrame, warped, MOTION_THRESHOLD)) {
+      previousWarpedFrame = warped;
+      statusEl.textContent = 'Motion detected (hand over the board?) — waiting for it to settle…';
+      return;
+    }
+    previousWarpedFrame = warped;
+    if (baselines) statusEl.textContent = 'Watching the board…';
+
     const points = intersectionPoints(boardSize, ANALYSIS_SIZE, ANALYSIS_SIZE, GRID_MARGIN);
 
     if (!baselines) {
@@ -257,6 +275,7 @@ function initApp(): void {
   function startPipeline(data: CalibrationData): void {
     inverseMatrix = invertMatrix3x3(data.matrix);
     baselines = null;
+    previousWarpedFrame = null;
     calibrationController?.dispose();
     calibrationController = null;
     stopAutoDetect();

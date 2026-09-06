@@ -49,7 +49,8 @@ The legacy `calibrate.py`/`spec-old.md` Python prototype is reference-only, not 
 ## Known limitations (by design, for now)
 
 - **No camera-movement tracking.** Calibration computes one homography matrix and caches it;
-  every later frame reuses that same fixed matrix until "Recalibrate" is clicked. If the camera
+  every later frame reuses that same fixed matrix until it's recalibrated (Reset, then Start
+  camera again). If the camera
   or board moves after calibrating, the cached warp silently becomes wrong — there's no
   drift detection or re-localization. Matches the spec's assumption of a fixed camera position
   for the session; revisit only if real-world testing shows this is too fragile.

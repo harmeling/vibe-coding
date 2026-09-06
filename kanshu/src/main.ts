@@ -57,7 +57,6 @@ function initApp(): void {
   const boardCanvas = byId<HTMLCanvasElement>('boardCanvas');
   const statusEl = byId<HTMLParagraphElement>('status');
   const startBtn = byId<HTMLButtonElement>('startBtn');
-  const recalibrateBtn = byId<HTMLButtonElement>('recalibrateBtn');
   const resetBtn = byId<HTMLButtonElement>('resetBtn');
   const downloadBtn = byId<HTMLAnchorElement>('downloadBtn');
   const boardSizeSelect = byId<HTMLSelectElement>('boardSizeSelect');
@@ -114,8 +113,7 @@ function initApp(): void {
   function setPhase(next: AppPhase): void {
     phase = next;
     startBtn.disabled = false;
-    startBtn.textContent = next === 'idle' ? 'Start camera' : next === 'calibrating' ? 'Auto calibrate' : 'Stop camera';
-    recalibrateBtn.disabled = next !== 'running';
+    startBtn.textContent = next === 'idle' ? 'Start camera' : next === 'calibrating' ? 'Calibrate' : 'Stop camera';
   }
 
   function refreshHud(): void {
@@ -253,7 +251,7 @@ function initApp(): void {
       analysisTimer = null;
     }
     statusEl.textContent =
-      'Auto-detecting the board — click "Auto calibrate" to accept the dashed outline, or click 4 corners directly on the video (any order).';
+      'Auto-detecting the board — click "Calibrate" to accept the dashed outline, or click 4 corners directly on the video (any order).';
     calibrationController?.dispose();
     calibrationController = new CalibrationController(liveCanvas, {
       boardSize,
@@ -273,7 +271,7 @@ function initApp(): void {
     }, AUTO_DETECT_INTERVAL_MS);
   }
 
-  function handleAutoCalibrateClick(): void {
+  function handleCalibrateClick(): void {
     if (!latestDetectedQuad || !calibrationController) {
       statusEl.textContent = 'No board detected yet — adjust the camera angle/lighting, or click 4 corners manually.';
       return;
@@ -318,15 +316,13 @@ function initApp(): void {
 
   startBtn.addEventListener('click', () => {
     if (phase === 'idle') handleStartCamera();
-    else if (phase === 'calibrating') handleAutoCalibrateClick();
+    else if (phase === 'calibrating') handleCalibrateClick();
     else handleStopCamera();
   });
 
-  recalibrateBtn.addEventListener('click', () => {
-    clearCalibration();
-    startCalibrationFlow();
-  });
-
+  // No separate "Recalibrate" button: Reset clears the stored calibration, so the next
+  // "Start camera" naturally goes through "Calibrate" again instead of resuming straight to
+  // "Watching the board...".
   resetBtn.addEventListener('click', () => {
     clearCalibration();
     clearSgfText();

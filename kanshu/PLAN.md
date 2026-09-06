@@ -58,12 +58,13 @@ smoke tests, and only the very last step needs an actual physical board.
 - [x] **Step 6 — Camera + calibration UI** (`src/camera.ts`, `src/frame.ts`,
       `src/calibration/calibration.ts`, `src/calibration/orderCorners.ts`,
       `src/calibration/autoDetect.ts`). `getUserMedia` wrapper; a single button that walks
-      "Start camera" → "Auto calibrate" → "Stop camera" through the app's 3 phases; 4-corner
-      picking in **any click order** (`orderCorners` sorts them, same sum/diff trick as the
-      legacy `calibrate.py`'s `order_points`); a hand-rolled Sobel-edge auto-detector
-      (`detectBoardQuad`) that continuously proposes a board quad (drawn as a dashed overlay)
-      while calibrating, which "Auto calibrate" accepts, or which manual corner clicks
-      override.
+      "Start camera" → "Calibrate" → "Stop camera" through the app's 3 phases (no separate
+      "Recalibrate" button — Reset clears the stored calibration, so the next "Start camera"
+      naturally goes through "Calibrate" again); 4-corner picking in **any click order**
+      (`orderCorners` sorts them, same sum/diff trick as the legacy `calibrate.py`'s
+      `order_points`); a hand-rolled Sobel-edge auto-detector (`detectBoardQuad`) that
+      continuously proposes a board quad (drawn as a dashed overlay) while calibrating, which
+      "Calibrate" accepts, or which manual corner clicks override.
       *Verified:* Vitest (`orderCorners.test.ts`, `autoDetect.test.ts`, 5 tests) — reordering a
       shuffled click sequence, and `detectBoardQuad` finding known corners of a synthetic
       rectangle and a perspective-skewed trapezoid, plus a null result on a blank frame.
@@ -74,8 +75,8 @@ smoke tests, and only the very last step needs an actual physical board.
       photo — expect it to need iteration once tried for real (that's the point of the
       synthetic tests: proving the *logic* works, not that the *thresholds* are right).
       **Do this smoke test yourself**: `npm run dev`, click "Start camera", watch for a dashed
-      outline to appear over whatever the camera sees; try clicking "Auto calibrate" to accept
-      it, and separately try clicking 4 corners manually in a scrambled order, confirming both
+      outline to appear over whatever the camera sees; try clicking "Calibrate" to accept it,
+      and separately try clicking 4 corners manually in a scrambled order, confirming both
       paths produce a plausible warped preview that survives a reload.
 
 - [x] **Step 7 — Pipeline wiring** (`src/main.ts`). Timer loop: frame capture → cached warp →

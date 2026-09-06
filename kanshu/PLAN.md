@@ -89,13 +89,18 @@ smoke tests, and only the very last step needs an actual physical board.
       intersections + coins as stones) and confirm placements/removals show up on the digital
       board within one snapshot interval. Real-board accuracy tuning is deferred to Step 10.
 
-- [x] **Step 8 — UI/HUD/accessibility** (`src/ui/render.ts`, `hud.ts`, `sound.ts`, `speech.ts`).
-      Dual canvas render (live/warped + numbered digital board), HUD (turn/last
-      move/captures), synthesized click sound (WebAudio, no asset file), optional
-      `SpeechSynthesis` announcements (off by default, toggle in the header).
-      *Verified:* Vitest (`hud.test.ts`, `speech.test.ts`, 5 tests) for the pure formatting
-      helpers. *Implemented, not yet manually verified* for the actual canvas
-      rendering/sound/speech playback — needs the same browser smoke test as Steps 6-7.
+- [x] **Step 8 — UI/HUD/accessibility** (`src/ui/render.ts`, `hud.ts`, `sound.ts`, `speech.ts`,
+      `src/game/moveLog.ts`). Dual canvas render (live/warped + numbered digital board), HUD
+      (turn/last move/captures), synthesized click sound (WebAudio, no asset file), optional
+      `SpeechSynthesis` announcements (off by default, toggle in the header), a read-only
+      numbered move list below the board, and an "Edit raw SGF" toggle exposing the SGF text
+      directly for hand-editing (e.g. adding player names) — deliberately unparsed/unvalidated,
+      for an expert user; once edited, the automatic per-move SGF rebuild stops touching it
+      until Reset.
+      *Verified:* Vitest (`hud.test.ts`, `speech.test.ts`, `moveLog.test.ts`, 9 tests) for the
+      pure formatting helpers. *Implemented, not yet manually verified* for the actual canvas
+      rendering/sound/speech playback/SGF editor — needs the same browser smoke test as
+      Steps 6-7.
 
 - [x] **Step 9 — PWA installability.** `public/manifest.json` + `public/icon.svg` +
       `public/sw.js` (cache-first app shell), registered from `main.ts`.

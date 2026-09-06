@@ -70,6 +70,8 @@ function initApp(): void {
   const hudLastMove = byId<HTMLElement>('hudLastMove');
   const hudCaptures = byId<HTMLElement>('hudCaptures');
   const moveLogEl = byId<HTMLTextAreaElement>('moveLog');
+  const editSgfBtn = byId<HTMLButtonElement>('editSgfBtn');
+  const sgfEditor = byId<HTMLTextAreaElement>('sgfEditor');
 
   let settings = loadSettings();
   boardSizeSelect.value = String(settings.boardSize);
@@ -102,6 +104,10 @@ function initApp(): void {
   let whiteCaptures = 0;
   let sgfText = loadSgfText() ?? '';
   let lastMoveDescription: string | null = null;
+  // Once the raw SGF has been hand-edited, the automatic camera-driven rebuild stops
+  // overwriting it — an expert user editing SGF directly (e.g. adding player names) owns it
+  // from that point on, until Reset. No parsing/merging: what they type is what gets saved.
+  let sgfManuallyEdited = false;
 
   function persistSettings(): void {
     settings = {
@@ -153,6 +159,10 @@ function initApp(): void {
     whiteCaptures = 0;
     lastMoveDescription = null;
     sgfText = '';
+    sgfManuallyEdited = false;
+    sgfEditor.value = '';
+    sgfEditor.hidden = true;
+    editSgfBtn.textContent = 'Edit raw SGF';
     saveSgfText(sgfText);
     updateDownloadLink();
     refreshHud();
@@ -230,9 +240,11 @@ function initApp(): void {
       nextColor = placement.color === 'black' ? 'white' : 'black';
     });
 
-    sgfText = buildSgf(turns, boardSize);
-    saveSgfText(sgfText);
-    updateDownloadLink();
+    if (!sgfManuallyEdited) {
+      sgfText = buildSgf(turns, boardSize);
+      saveSgfText(sgfText);
+      updateDownloadLink();
+    }
     playClick(settings.clickSound);
     renderDigitalBoard(boardCanvas, internalBoard, boardSize, moveNumbers);
     renderMoveLog();
@@ -365,6 +377,24 @@ function initApp(): void {
   facingSelect.addEventListener('change', persistSettings);
   voiceToggle.addEventListener('change', persistSettings);
   soundToggle.addEventListener('change', persistSettings);
+
+  editSgfBtn.addEventListener('click', () => {
+    sgfEditor.hidden = !sgfEditor.hidden;
+    if (!sgfEditor.hidden) {
+      sgfEditor.value = sgfText;
+      sgfEditor.focus();
+      editSgfBtn.textContent = 'Hide SGF editor';
+    } else {
+      editSgfBtn.textContent = 'Edit raw SGF';
+    }
+  });
+
+  sgfEditor.addEventListener('input', () => {
+    sgfManuallyEdited = true;
+    sgfText = sgfEditor.value;
+    saveSgfText(sgfText);
+    updateDownloadLink();
+  });
 
   renderDigitalBoard(boardCanvas, internalBoard, boardSize, moveNumbers);
   refreshHud();

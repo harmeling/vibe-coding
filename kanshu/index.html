@@ -4,9 +4,124 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>監守 Kanshū — Go Game Recorder</title>
+  <meta name="theme-color" content="#e6cfa7" />
+  <link rel="manifest" href="manifest.json" />
+  <style>
+    :root {
+      color-scheme: light dark;
+      --board-bg: #e6cfa7;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background: #f5f1e8;
+      color: #2b2b2b;
+      padding: 1rem;
+    }
+    header h1 {
+      font-size: 1.25rem;
+      margin: 0 0 0.75rem;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem 1.25rem;
+      align-items: center;
+      font-size: 0.9rem;
+      margin-bottom: 0.75rem;
+    }
+    .controls label {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    #status {
+      font-size: 0.9rem;
+      color: #555;
+    }
+    .canvases {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    canvas {
+      max-width: 100%;
+      width: 360px;
+      height: auto;
+      background: var(--board-bg);
+      border: 1px solid #d8d0bd;
+      touch-action: none;
+    }
+    .hud {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 1.5rem;
+      margin-top: 0.75rem;
+      font-size: 0.9rem;
+    }
+    a.button, button {
+      font: inherit;
+      padding: 0.4rem 0.75rem;
+      border: 1px solid #b9ae8f;
+      background: #fff;
+      cursor: pointer;
+      text-decoration: none;
+      color: inherit;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+  </style>
 </head>
 <body>
-  <div id="app"></div>
+  <div id="app">
+    <header>
+      <h1>監守 Kanshū</h1>
+      <div class="controls">
+        <label>Board size
+          <select id="boardSizeSelect">
+            <option value="9">9×9</option>
+            <option value="13">13×13</option>
+            <option value="19">19×19</option>
+          </select>
+        </label>
+        <label>Snapshot interval (s)
+          <input id="snapshotInterval" type="number" min="2" step="1" value="10" />
+        </label>
+        <label>Camera
+          <select id="facingMode">
+            <option value="environment">Rear</option>
+            <option value="user">Front</option>
+          </select>
+        </label>
+        <label><input id="voiceToggle" type="checkbox" /> Voice announcements</label>
+        <label><input id="soundToggle" type="checkbox" checked /> Click sound</label>
+        <button id="startBtn" type="button">Start camera</button>
+        <button id="recalibrateBtn" type="button" disabled>Recalibrate</button>
+        <button id="resetBtn" type="button">Reset</button>
+        <a id="downloadBtn" class="button" href="#" download="game.sgf">Download SGF</a>
+      </div>
+    </header>
+
+    <p id="status">Click &ldquo;Start camera&rdquo; to begin.</p>
+
+    <div class="canvases">
+      <canvas id="liveCanvas" width="480" height="480"></canvas>
+      <canvas id="boardCanvas" width="480" height="480"></canvas>
+    </div>
+
+    <div class="hud">
+      <span id="hudTurn"></span>
+      <span id="hudLastMove"></span>
+      <span id="hudCaptures"></span>
+    </div>
+
+    <video id="video" playsinline muted style="display:none"></video>
+  </div>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

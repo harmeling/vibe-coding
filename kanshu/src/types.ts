@@ -24,5 +24,5 @@ export interface PixelBuffer {
   width: number;
   height: number;
   /** RGBA, 4 bytes per pixel, row-major. */
-  data: Uint8ClampedArray;
+  data: Uint8ClampedArray<ArrayBuffer>;
 }

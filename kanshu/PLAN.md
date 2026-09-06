@@ -3,6 +3,11 @@
 Work through these one at a time, top to bottom. Don't start a step until the previous one's
 verification passes. Check off each box as it's verified.
 
+Checkbox convention: `[x]` with no `⚠️` means actually verified (usually by an automated test).
+`[x] ⚠️ not yet manually verified` means the code is written and compiles/builds cleanly but the
+manual browser (and/or camera) smoke test it needs hasn't been run by anyone yet — treat those
+as "implemented, please go try it" rather than "done."
+
 Design principle behind this ordering: the interesting logic (homography math, grid
 classification, debounce, board-state diffing, SGF generation) is written as pure functions over
 plain data (points, typed pixel buffers, board arrays) instead of live `getUserMedia`/`Canvas`
@@ -50,28 +55,40 @@ smoke tests, and only the very last step needs an actual physical board.
       round-trip, missing-key fallback, stale-schema and corrupt-JSON handling. No hardware
       needed.
 
-- [ ] **Step 6 — Camera + calibration UI** (`src/camera.ts`, `src/calibration/calibration.ts`).
-      `getUserMedia` wrapper; pointerdown 4-corner picker over the live feed, wired to
-      `homography.ts` + `storage.ts`.
-      *Verify:* manual smoke test via `npm run dev` — click 4 corners with **any** camera
-      pointed at **any** surface, confirm a plausible warped preview renders and persists
-      across reload. Doesn't require a physical Go board yet, just a camera.
+- [x] **Step 6 — Camera + calibration UI** (`src/camera.ts`, `src/frame.ts`,
+      `src/calibration/calibration.ts`). `getUserMedia` wrapper; pointerdown 4-corner picker
+      over the live feed (ordered top-left/top-right/bottom-right/bottom-left, no auto
+      reordering yet — see code comment), wired to `homography.ts` + `storage.ts`.
+      *Implemented, ⚠️ not yet manually verified* — `npm run typecheck`/`build` are clean and
+      `npm run dev` serves every element `main.ts` expects (checked via curl), but nobody has
+      actually clicked 4 corners with a live camera yet. **Do this smoke test yourself**: `npm
+      run dev`, click "Start camera", click 4 corners on any surface, confirm a plausible
+      warped preview appears in the left canvas and survives a reload. No physical Go board
+      needed yet, just a camera.
 
-- [ ] **Step 7 — Pipeline wiring** (`src/main.ts`). Timer loop: frame capture → cached warp →
-      grid sample → confirm → board diff → SGF update → storage persist.
-      *Verify:* manual smoke test — point the camera at any grid-like stand-in (e.g. paper with
-      drawn intersections and coins/counters as stones) and confirm the pipeline fires
-      end-to-end. Real-board accuracy tuning is deferred to Step 10.
+- [x] **Step 7 — Pipeline wiring** (`src/main.ts`). Timer loop: frame capture → cached warp →
+      grid sample → confirm → board diff → SGF update → storage persist. The empty-board
+      baseline is captured from the first analysis tick after calibrating (assumes the board
+      is empty at that moment) rather than a separate dedicated step — flagged as a
+      simplification to revisit in Step 10 if it proves fragile.
+      *Implemented, ⚠️ not yet manually verified* — same caveat as Step 6. **Smoke test**:
+      after calibrating, point the camera at any grid-like stand-in (paper with drawn
+      intersections + coins as stones) and confirm placements/removals show up on the digital
+      board within one snapshot interval. Real-board accuracy tuning is deferred to Step 10.
 
-- [ ] **Step 8 — UI/HUD/accessibility** (`src/ui/render.ts`, `hud.ts`, `sound.ts`, `speech.ts`).
-      Dual canvas render, HUD (turn/last move/captures), click sound, optional
-      `SpeechSynthesis` announcements (off by default).
-      *Verify:* manual smoke test in browser; any pure formatting helpers (e.g. move →
-      coordinate string like "D4") get Vitest coverage. No hardware needed.
+- [x] **Step 8 — UI/HUD/accessibility** (`src/ui/render.ts`, `hud.ts`, `sound.ts`, `speech.ts`).
+      Dual canvas render (live/warped + numbered digital board), HUD (turn/last
+      move/captures), synthesized click sound (WebAudio, no asset file), optional
+      `SpeechSynthesis` announcements (off by default, toggle in the header).
+      *Verified:* Vitest (`hud.test.ts`, `speech.test.ts`, 5 tests) for the pure formatting
+      helpers. *Implemented, not yet manually verified* for the actual canvas
+      rendering/sound/speech playback — needs the same browser smoke test as Steps 6-7.
 
-- [ ] **Step 9 — PWA installability.** Manifest + service worker.
-      *Verify:* manual — Chrome DevTools Application tab / Lighthouse PWA audit, reload while
-      offline. No hardware needed.
+- [x] **Step 9 — PWA installability.** `public/manifest.json` + `public/icon.svg` +
+      `public/sw.js` (cache-first app shell), registered from `main.ts`.
+      *Implemented, ⚠️ not yet manually verified* — confirmed the built `dist/` includes all
+      three files at the right paths, but nobody has run the Chrome DevTools Application tab /
+      Lighthouse PWA audit or tried an offline reload yet.
 
 - [ ] **Step 10 — 🚧 POSTPONED — real-board validation.** Calibrate against an actual physical
       board from a side angle, play through a real game including captures, tune default

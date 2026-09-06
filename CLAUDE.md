@@ -28,8 +28,7 @@ project's built output must be added to the "Assemble site" step** to actually g
 - root `index.html` is a landing page linking to each app
 - `goban/` is copied in as-is (single static file, no build step)
 - `kanshu/` is only built and copied in once it has a `kanshu/package.json` (the workflow checks
-  for this and skips it otherwise) — it now has one, so it deploys too, currently just the
-  placeholder page from `PLAN.md` Step 0
+  for this and skips it otherwise) — it now has one, so it deploys too
 
 ## goban/
 
@@ -52,9 +51,10 @@ project's built output must be added to the "Assemble site" step** to actually g
 
 See `kanshu/CLAUDE.md`. In short: a fully client-side (no backend, ever) Vite+TypeScript rebuild
 of an earlier Python/OpenCV prototype (`calibrate.py`, `spec-old.md`, kept only as algorithmic
-reference, not to be extended). The project is now scaffolded and being built incrementally per
-`kanshu/PLAN.md` — don't assume any module or API beyond what a completed, checked-off step in
-that file actually added.
+reference, not to be extended). All of `kanshu/PLAN.md`'s steps are implemented except the
+intentionally-postponed real-board validation step — but the browser-facing half (camera,
+calibration, rendering) hasn't been manually verified with a live camera by anyone yet, so treat
+it as "should work" rather than "confirmed working" until that smoke test happens.
 
 The legacy prototype runs via:
 

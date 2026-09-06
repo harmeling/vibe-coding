@@ -1,0 +1,13 @@
+{
+  "name": "Kanshū — Go Game Recorder",
+  "short_name": "Kanshū",
+  "description": "A non-intrusive Go game recorder that watches a physical board via camera and exports SGF.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#f5f1e8",
+  "theme_color": "#e6cfa7",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

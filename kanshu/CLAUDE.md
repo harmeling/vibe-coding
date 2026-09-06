@@ -34,10 +34,14 @@ Non-negotiable constraints from `spec.md`:
 
 ## Current state
 
-Scaffolded (Vite + TypeScript + Vitest, no framework) but not yet implemented beyond a
-placeholder `src/main.ts`. Build it by following `PLAN.md` **one step at a time, in order** —
-each step lists its own verification and whether it needs real hardware. Don't assume any module
-or API beyond what a completed step actually added.
+All of `PLAN.md`'s Steps 0-9 are implemented; Step 10 (real-board validation/threshold tuning)
+is intentionally postponed until a physical board is available for testing. The pure-logic
+layer (homography, warp, grid classification/debounce, board diffing, SGF, storage — Steps
+1-5) is fully covered by Vitest (44 tests). The browser-glue layer (camera, calibration UI,
+pipeline wiring, canvas rendering, sound/speech, PWA manifest — Steps 6-9) type-checks and
+builds cleanly but **has not been manually smoke-tested with a live camera by anyone yet** —
+see the `⚠️` markers in `PLAN.md` for exactly what to try first. Read `PLAN.md` before assuming
+any module or behavior is more finished than it says.
 
 The legacy `calibrate.py`/`spec-old.md` Python prototype is reference-only, not to be extended.
 

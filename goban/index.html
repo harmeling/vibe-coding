@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Peer-to-Peer Go Board</title>
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    :root {
+      --board-bg: #e6cfa7;
+      --line-color: rgba(0, 0, 0, 0.35);
+      --stone-shadow: rgba(0, 0, 0, 0.35);
+      --stone-size: 30px;
+      --bowl-bg: rgba(255, 255, 255, 0.35);
+      --bowl-border: rgba(255, 255, 255, 0.5);
+      --header-height: 56px;
+      --board-length: min(100vw, calc(100vh - var(--header-height)));
+      --grid-margin: 20px;
+      --grid-size: 400px;
+      --grid-step: 40px;
+    }
+
+    * {
+      box-sizing: border-box;
+      touch-action: none;
+      user-select: none;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Inter", system-ui, sans-serif;
+      background: #f5f1e8;
+      color: #2b2b2b;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      min-height: 100vh;
+    }
+
+    .header {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      height: var(--header-height);
+      padding: 8px 16px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    button, select {
+      border: none;
+      padding: 8px 12px;
+      font-size: 14px;
+      background: #ffffff;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      cursor: pointer;
+    }
+
+    button:hover, select:hover {
+      filter: brightness(0.98);
+    }
+
+    .layout {
+      width: 100%;
+      height: calc(100vh - var(--header-height));
+      display: grid;
+      grid-template-areas: "left board right";
+      grid-template-columns: 1fr var(--board-length) 1fr;
+      grid-template-rows: 1fr;
+    }
+
+    .bowl-column {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      width: 100%;
+    }
+
+    .bowl-column.left {
+      grid-area: left;
+    }
+
+    .bowl-column.right {
+      grid-area: right;
+    }
+
+    .bowl {
+      position: relative;
+      width: 100%;
+      flex: 1;
+      min-height: 0;
+      background: var(--bowl-bg);
+      border: 1px solid var(--bowl-border);
+      box-shadow: inset 0 2px 10px rgba(0,0,0,0.12);
+      backdrop-filter: blur(6px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      text-align: center;
+      overflow: hidden;
+    }
+
+    .bowl-stones {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+    }
+
+    .bowl span,
+    .bowl .counter {
+      position: relative;
+      z-index: 2;
+    }
+
+
+    .bowl span {
+      font-size: 13px;
+      opacity: 0.8;
+    }
+
+    .counter {
+      font-weight: 600;
+      font-size: 18px;
+    }
+
+    .board-wrapper {
+      position: relative;
+      width: var(--board-length);
+      height: var(--board-length);
+      grid-area: board;
+      justify-self: center;
+      align-self: center;
+      overflow: hidden;
+      box-shadow: 0 12px 28px rgba(0,0,0,0.15);
+    }
+
+    .board {
+      position: absolute;
+      inset: 0;
+      background-color: var(--board-bg);
+      background-image:
+        repeating-linear-gradient(0deg, var(--line-color) 0 1px, transparent 1px var(--grid-step)),
+        repeating-linear-gradient(90deg, var(--line-color) 0 1px, transparent 1px var(--grid-step));
+      background-size: calc(var(--grid-size) + 1px) calc(var(--grid-size) + 1px);
+      background-position: var(--grid-margin) var(--grid-margin);
+      background-repeat: no-repeat;
+      display: block;
+    }
+
+    .wood-grain {
+      background-image:
+        linear-gradient(115deg, rgba(255,255,255,0.08), rgba(0,0,0,0.05)),
+        repeating-linear-gradient(0deg, rgba(0,0,0,0.02) 0 2px, rgba(255,255,255,0.04) 2px 4px),
+        repeating-linear-gradient(0deg, var(--line-color) 0 1px, transparent 1px var(--grid-step)),
+        repeating-linear-gradient(90deg, var(--line-color) 0 1px, transparent 1px var(--grid-step));
+      background-size: auto, auto, calc(var(--grid-size) + 1px) calc(var(--grid-size) + 1px), calc(var(--grid-size) + 1px) calc(var(--grid-size) + 1px);
+      background-position: 0 0, 0 0, var(--grid-margin) var(--grid-margin), var(--grid-margin) var(--grid-margin);
+      background-repeat: repeat, repeat, no-repeat, no-repeat;
+    }
+
+    .stones-layer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .hoshi-layer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .hoshi {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.5);
+      transform: translate(-50%, -50%);
+    }
+
+    .drag-layer {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 18;
+    }
+
+    .stone {
+      position: absolute;
+      width: var(--stone-size);
+      height: var(--stone-size);
+      border-radius: 50%;
+      cursor: grab;
+      transform: translate(-50%, -50%);
+      transition: transform 0.1s ease, box-shadow 0.1s ease;
+      pointer-events: auto;
+    }
+
+    .stone.black {
+      background: radial-gradient(circle at 30% 30%, #444, #000);
+      box-shadow: 1px 2px 4px var(--stone-shadow);
+    }
+
+    .stone.white {
+      background: radial-gradient(circle at 30% 30%, #fff, #ddd);
+      box-shadow: 1px 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .stone.dragging {
+      transform: translate(-50%, -50%) scale(1.1);
+      box-shadow: 5px 10px 20px rgba(0,0,0,0.3);
+      cursor: grabbing;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(20,20,20,0.8);
+      color: white;
+      padding: 10px 16px;
+      font-size: 14px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+      z-index: 30;
+    }
+
+    .toast.show {
+      opacity: 1;
+    }
+
+    .qr-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+    }
+
+    .qr-card {
+      background: white;
+      padding: 18px;
+      text-align: center;
+      box-shadow: 0 12px 28px rgba(0,0,0,0.2);
+      min-width: 220px;
+    }
+
+    .qr-card p {
+      margin: 8px 0 0 0;
+      font-size: 13px;
+      color: #555;
+    }
+
+
+    @media (max-aspect-ratio: 1/1) {
+      .layout {
+        grid-template-areas:
+          "left"
+          "board"
+          "right";
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr var(--board-length) 1fr;
+      }
+
+      .bowl-column {
+        flex-direction: row;
+      }
+    }
+  </style>
+</head>
+<body class="theme-wood">
+  <div class="header">
+    <div>
+      <strong>Peer-to-Peer Go Board</strong>
+    </div>
+    <div class="controls">
+      <button id="qrToggle">QR</button>
+      <label>
+        <select id="boardSize">
+          <option value="9">9x9</option>
+          <option value="13">13x13</option>
+          <option value="19">19x19</option>
+        </select>
+      </label>
+      <button id="resetBtn">Reset</button>
+    </div>
+  </div>
+
+  <div class="layout">
+    <div class="bowl-column left">
+      <div class="bowl" id="infiniteBlack" data-bowl="infinite" data-color="black">
+        <div class="bowl-stones"></div>
+        <span>Infinite Black</span>
+      </div>
+      <div class="bowl" id="infiniteWhite" data-bowl="infinite" data-color="white">
+        <div class="bowl-stones"></div>
+        <span>Infinite White</span>
+      </div>
+    </div>
+
+    <div class="board-wrapper">
+      <div class="board wood-grain" id="board"></div>
+      <div class="hoshi-layer" id="hoshiLayer"></div>
+      <div class="stones-layer" id="stonesLayer"></div>
+    </div>
+
+    <div class="bowl-column right">
+      <div class="bowl" id="prisonerBlack" data-bowl="prisoner" data-color="black">
+        <div class="bowl-stones"></div>
+        <span>Prisoner Black</span>
+        <div class="counter" id="countBlack">0</div>
+      </div>
+      <div class="bowl" id="prisonerWhite" data-bowl="prisoner" data-color="white">
+        <div class="bowl-stones"></div>
+        <span>Prisoner White</span>
+        <div class="counter" id="countWhite">0</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="drag-layer" id="dragLayer"></div>
+
+  <div class="qr-overlay" id="qrOverlay">
+    <div class="qr-card">
+      <div id="qrCode"></div>
+      <p>Scan to join</p>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">Share link copied!</div>
+
+  <script>
+    const board = document.getElementById("board");
+    const stonesLayer = document.getElementById("stonesLayer");
+    const boardSizeSelect = document.getElementById("boardSize");
+    const resetBtn = document.getElementById("resetBtn");
+    const qrToggle = document.getElementById("qrToggle");
+    const qrOverlay = document.getElementById("qrOverlay");
+    const qrCode = document.getElementById("qrCode");
+    const toast = document.getElementById("toast");
+    const dragLayer = document.getElementById("dragLayer");
+    const hoshiLayer = document.getElementById("hoshiLayer");
+    const countBlack = document.getElementById("countBlack");
+    const countWhite = document.getElementById("countWhite");
+
+    let boardSize = 9;
+    let prisonerCounts = { black: 0, white: 0 };
+    let peer = null;
+    let conn = null;
+    const themes = ["theme-wood"];
+    let boardGeometry = { marginPercent: 0 };
+
+    const stones = new Map();
+
+    const dragState = {
+      stone: null,
+      origin: null,
+      color: null,
+      removedFromPrisoner: false
+    };
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add("show");
+      setTimeout(() => toast.classList.remove("show"), 2000);
+    }
+
+    function setBoardSize(size) {
+      boardSize = size;
+      board.style.setProperty("--board-size", boardSize);
+      updateBoardGeometry();
+      broadcast({ type: "size", size: boardSize });
+      syncStonePositions();
+      renderHoshi();
+    }
+
+    function updateBoardGeometry() {
+      const rect = board.getBoundingClientRect();
+      const step = rect.width / (boardSize + 1);
+      const margin = step;
+      const gridSize = step * (boardSize - 1);
+      const stoneSize = step * 0.9;
+      board.style.setProperty("--grid-step", `${step}px`);
+      board.style.setProperty("--grid-margin", `${margin}px`);
+      board.style.setProperty("--grid-size", `${gridSize}px`);
+      document.documentElement.style.setProperty("--stone-size", `${stoneSize}px`);
+      boardGeometry.marginPercent = (margin / rect.width) * 100;
+    }
+
+    function syncStonePositions() {
+      stones.forEach((stone) => {
+        if (stone.dataset.location !== "board") return;
+        const x = parseFloat(stone.dataset.x || 0);
+        const y = parseFloat(stone.dataset.y || 0);
+        positionStonePercent(stone, x, y);
+      });
+    }
+
+    function positionStonePercent(stone, xPercent, yPercent) {
+      stone.style.left = `${xPercent}%`;
+      stone.style.top = `${yPercent}%`;
+      stone.dataset.x = xPercent;
+      stone.dataset.y = yPercent;
+    }
+
+    function createStone({ id, color, xPercent, yPercent }) {
+      let stone = stones.get(id);
+      if (!stone) {
+        stone = document.createElement("div");
+        stone.className = `stone ${color}`;
+        stone.dataset.id = id;
+        stone.dataset.color = color;
+        stone.addEventListener("pointerdown", onStonePointerDown);
+        stones.set(id, stone);
+      }
+      if (typeof xPercent === "number" && typeof yPercent === "number") {
+        placeStoneOnBoard(stone, xPercent, yPercent);
+      }
+      return stone;
+    }
+
+    function placeStoneOnBoard(stone, xPercent, yPercent) {
+      if (stone.parentElement !== stonesLayer) {
+        stonesLayer.appendChild(stone);
+      }
+      stone.dataset.location = "board";
+      delete stone.dataset.bowl;
+      delete stone.dataset.bowlType;
+      delete stone.dataset.bowlX;
+      delete stone.dataset.bowlY;
+      positionStonePercent(stone, xPercent, yPercent);
+    }
+
+    function placeStoneInBowl(stone, bowl, xPercent, yPercent) {
+      const bowlLayer = bowl.querySelector(".bowl-stones");
+      if (bowlLayer && stone.parentElement !== bowlLayer) {
+        bowlLayer.appendChild(stone);
+      }
+      stone.dataset.location = "bowl";
+      stone.dataset.bowlColor = bowl.dataset.color;
+      stone.dataset.bowlType = bowl.dataset.bowl;
+      stone.dataset.bowlId = bowl.id;
+      stone.dataset.bowlX = xPercent;
+      stone.dataset.bowlY = yPercent;
+      stone.style.left = `${xPercent}%`;
+      stone.style.top = `${yPercent}%`;
+      stone.dataset.x = "";
+      stone.dataset.y = "";
+    }
+
+    function positionStonePixel(stone, x, y) {
+      if (stone.parentElement !== dragLayer) {
+        dragLayer.appendChild(stone);
+      }
+      stone.style.left = `${x}px`;
+      stone.style.top = `${y}px`;
+    }
+
+    function removeStone(id) {
+      const stone = stones.get(id);
+      if (stone) {
+        stone.remove();
+        stones.delete(id);
+      }
+    }
+
+    function updateCounts() {
+      countBlack.textContent = prisonerCounts.black;
+      countWhite.textContent = prisonerCounts.white;
+    }
+
+    function incrementPrisoner(color, amount) {
+      prisonerCounts[color] = Math.max(0, prisonerCounts[color] + amount);
+      updateCounts();
+      broadcast({ type: "count", counts: prisonerCounts });
+    }
+
+    function getHoshiPoints(size) {
+      if (size === 9) {
+        return [
+          [3, 3], [3, 7], [7, 3], [7, 7], [5, 5]
+        ];
+      }
+      if (size === 13) {
+        return [
+          [4, 4], [4, 7], [4, 10],
+          [7, 4], [7, 7], [7, 10],
+          [10, 4], [10, 7], [10, 10]
+        ];
+      }
+      return [
+        [4, 4], [4, 10], [4, 16],
+        [10, 4], [10, 10], [10, 16],
+        [16, 4], [16, 10], [16, 16]
+      ];
+    }
+
+    function renderHoshi() {
+      hoshiLayer.innerHTML = "";
+      const rect = board.getBoundingClientRect();
+      const step = rect.width / (boardSize + 1);
+      const dotSize = Math.max(4, step * 0.18);
+      getHoshiPoints(boardSize).forEach(([row, col]) => {
+        const dot = document.createElement("div");
+        dot.className = "hoshi";
+        dot.style.width = `${dotSize}px`;
+        dot.style.height = `${dotSize}px`;
+        dot.style.left = `${col * step}px`;
+        dot.style.top = `${row * step}px`;
+        hoshiLayer.appendChild(dot);
+      });
+    }
+
+    function getPointerPercent(evt) {
+      const rect = board.getBoundingClientRect();
+      const x = ((evt.clientX - rect.left) / rect.width) * 100;
+      const y = ((evt.clientY - rect.top) / rect.height) * 100;
+      const margin = boardGeometry.marginPercent;
+      return {
+        x: Math.max(margin, Math.min(100 - margin, x)),
+        y: Math.max(margin, Math.min(100 - margin, y))
+      };
+    }
+
+    function getBowlTarget(x, y) {
+      const bowls = document.querySelectorAll(".bowl");
+      for (const bowl of bowls) {
+        const rect = bowl.getBoundingClientRect();
+        if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+          return bowl;
+        }
+      }
+      return null;
+    }
+
+    function onStonePointerDown(evt) {
+      evt.preventDefault();
+      evt.stopPropagation();
+      const stone = evt.currentTarget;
+      const origin = {
+        location: stone.dataset.location || "board",
+        x: stone.dataset.x,
+        y: stone.dataset.y,
+        bowlColor: stone.dataset.bowlColor,
+        bowlType: stone.dataset.bowlType,
+        bowlId: stone.dataset.bowlId,
+        bowlX: stone.dataset.bowlX,
+        bowlY: stone.dataset.bowlY
+      };
+
+      if (origin.location === "bowl" && origin.bowlType === "prisoner") {
+        const bowlColor = origin.bowlColor || stone.dataset.color;
+        if (prisonerCounts[bowlColor] <= 0) {
+          return;
+        }
+      }
+
+      dragState.stone = stone;
+      dragState.color = stone.dataset.color;
+      dragState.origin = origin;
+      dragState.removedFromPrisoner = false;
+
+      if (origin.location === "bowl" && origin.bowlType === "prisoner") {
+        incrementPrisoner(origin.bowlColor || stone.dataset.color, -1);
+        dragState.removedFromPrisoner = true;
+      }
+
+      stone.classList.add("dragging");
+      stone.setPointerCapture(evt.pointerId);
+      positionStonePixel(stone, evt.clientX, evt.clientY);
+    }
+
+    function onBowlPointerDown(evt) {
+      const bowl = evt.currentTarget;
+      const bowlType = bowl.dataset.bowl;
+      const color = bowl.dataset.color;
+
+      if (bowlType === "prisoner") {
+        return;
+      }
+
+      const spawnColor = color;
+
+      const stoneId = `stone_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const stone = createStone({ id: stoneId, color: spawnColor });
+      dragState.stone = stone;
+      dragState.color = spawnColor;
+      dragState.origin = null;
+      dragState.removedFromPrisoner = false;
+
+      stone.classList.add("dragging");
+      stone.setPointerCapture(evt.pointerId);
+      positionStonePixel(stone, evt.clientX, evt.clientY);
+    }
+
+    function onPointerMove(evt) {
+      if (!dragState.stone) return;
+      positionStonePixel(dragState.stone, evt.clientX, evt.clientY);
+    }
+
+    function onPointerUp(evt) {
+      if (!dragState.stone) return;
+
+      const stone = dragState.stone;
+      stone.classList.remove("dragging");
+
+      const boardRect = board.getBoundingClientRect();
+      const pointInsideBoard =
+        evt.clientX >= boardRect.left &&
+        evt.clientX <= boardRect.right &&
+        evt.clientY >= boardRect.top &&
+        evt.clientY <= boardRect.bottom;
+
+      const bowlTarget = getBowlTarget(evt.clientX, evt.clientY);
+
+      if (bowlTarget) {
+        const bowlType = bowlTarget.dataset.bowl;
+        const bowlColor = bowlTarget.dataset.color;
+        const isPrisoner = bowlType === "prisoner";
+        const acceptsStone = !isPrisoner || dragState.color === bowlColor;
+
+        if (acceptsStone) {
+          const rect = bowlTarget.getBoundingClientRect();
+          const x = ((evt.clientX - rect.left) / rect.width) * 100;
+          const y = ((evt.clientY - rect.top) / rect.height) * 100;
+          placeStoneInBowl(stone, bowlTarget, Math.max(0, Math.min(100, x)), Math.max(0, Math.min(100, y)));
+
+          if (isPrisoner) {
+            incrementPrisoner(bowlColor, 1);
+          }
+
+          broadcast({
+            type: "bowl",
+            id: stone.dataset.id,
+            color: stone.dataset.color,
+            bowlId: bowlTarget.id,
+            bowlType,
+            x: parseFloat(stone.dataset.bowlX),
+            y: parseFloat(stone.dataset.bowlY)
+          });
+        } else if (dragState.origin) {
+          restoreStoneToOrigin(stone, dragState.origin);
+        } else {
+          removeStone(stone.dataset.id);
+        }
+      } else if (pointInsideBoard) {
+        const { x, y } = getPointerPercent(evt);
+        placeStoneOnBoard(stone, x, y);
+        broadcast({
+          type: "stone",
+          id: stone.dataset.id,
+          color: stone.dataset.color,
+          x,
+          y
+        });
+      } else {
+        if (dragState.origin) {
+          restoreStoneToOrigin(stone, dragState.origin);
+        } else {
+          removeStone(stone.dataset.id);
+        }
+      }
+
+      dragState.stone = null;
+      dragState.origin = null;
+      dragState.removedFromPrisoner = false;
+    }
+
+    function restoreStoneToOrigin(stone, origin) {
+      if (origin.location === "board") {
+        placeStoneOnBoard(stone, parseFloat(origin.x), parseFloat(origin.y));
+      } else if (origin.location === "bowl") {
+        const bowl = document.getElementById(origin.bowlId) || document.querySelector(`.bowl[data-bowl="${origin.bowlType}"]`);
+        if (bowl) {
+          placeStoneInBowl(stone, bowl, parseFloat(origin.bowlX), parseFloat(origin.bowlY));
+        }
+      }
+
+      if (dragState.removedFromPrisoner) {
+        incrementPrisoner(origin.bowlColor, 1);
+      }
+    }
+
+    function resetBoard(localOnly = false) {
+      stones.forEach((stone) => stone.remove());
+      stones.clear();
+      prisonerCounts = { black: 0, white: 0 };
+      updateCounts();
+      if (!localOnly) {
+        broadcast({ type: "reset" });
+      }
+    }
+
+    function broadcast(payload) {
+      if (conn && conn.open) {
+        conn.send(payload);
+      }
+    }
+
+    function setupPeer() {
+      const params = new URLSearchParams(window.location.search);
+      const joinId = params.get("join");
+
+      peer = new Peer();
+
+      peer.on("open", (id) => {
+        if (!joinId) {
+          params.set("join", id);
+          const newUrl = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
+          history.replaceState({}, "", newUrl);
+          navigator.clipboard.writeText(newUrl).then(() => {
+            showToast("Share link copied!");
+          }).catch(() => {
+            showToast("Share link ready");
+          });
+        } else {
+          conn = peer.connect(joinId);
+          attachConnectionHandlers();
+        }
+      });
+
+      peer.on("connection", (incoming) => {
+        conn = incoming;
+        attachConnectionHandlers();
+      });
+    }
+
+    function attachConnectionHandlers() {
+      if (!conn) return;
+      conn.on("open", () => {
+        conn.send({ type: "size", size: boardSize });
+        conn.send({ type: "count", counts: prisonerCounts });
+        stones.forEach((stone) => {
+          if (stone.dataset.location === "bowl") {
+            conn.send({
+              type: "bowl",
+              id: stone.dataset.id,
+              color: stone.dataset.color,
+              bowlId: stone.dataset.bowlId,
+              bowlType: stone.dataset.bowlType,
+              x: parseFloat(stone.dataset.bowlX),
+              y: parseFloat(stone.dataset.bowlY)
+            });
+          } else {
+            conn.send({
+              type: "stone",
+              id: stone.dataset.id,
+              color: stone.dataset.color,
+              x: parseFloat(stone.dataset.x),
+              y: parseFloat(stone.dataset.y)
+            });
+          }
+        });
+        conn.send({ type: "style", theme: themes[0] });
+      });
+
+      conn.on("data", (data) => {
+        if (!data || typeof data !== "object") return;
+        if (data.type === "stone") {
+          createStone({ id: data.id, color: data.color, xPercent: data.x, yPercent: data.y });
+        }
+        if (data.type === "bowl") {
+          const bowl = document.getElementById(data.bowlId) || document.querySelector(`.bowl[data-bowl="${data.bowlType}"]`);
+          if (bowl) {
+            const stone = createStone({ id: data.id, color: data.color });
+            placeStoneInBowl(stone, bowl, data.x, data.y);
+          }
+        }
+        if (data.type === "count") {
+          prisonerCounts = data.counts;
+          updateCounts();
+        }
+        if (data.type === "reset") {
+          resetBoard(true);
+        }
+        if (data.type === "size") {
+          boardSize = data.size;
+          boardSizeSelect.value = String(boardSize);
+          board.style.setProperty("--board-size", boardSize);
+          updateBoardGeometry();
+          renderHoshi();
+          syncStonePositions();
+        }
+        if (data.type === "style") {
+          setTheme(data.theme, true);
+        }
+      });
+    }
+
+    function setTheme(themeClass, remote = false) {
+      document.body.classList.remove(...themes);
+      document.body.classList.add(themeClass || themes[0]);
+      if (!remote) {
+        broadcast({ type: "style", theme: themeClass });
+      }
+    }
+
+    function toggleQr() {
+      if (qrOverlay.style.display === "flex") {
+        qrOverlay.style.display = "none";
+        qrCode.innerHTML = "";
+      } else {
+        qrOverlay.style.display = "flex";
+        qrCode.innerHTML = "";
+        new QRCode(qrCode, {
+          text: window.location.href,
+          width: 180,
+          height: 180
+        });
+      }
+    }
+
+    function init() {
+      board.style.setProperty("--board-size", boardSize);
+      updateBoardGeometry();
+      updateCounts();
+      renderHoshi();
+
+      document.querySelectorAll(".bowl").forEach((bowl) => {
+        bowl.addEventListener("pointerdown", onBowlPointerDown);
+      });
+
+      window.addEventListener("pointermove", onPointerMove);
+      window.addEventListener("pointerup", onPointerUp);
+      window.addEventListener("resize", () => {
+        updateBoardGeometry();
+        renderHoshi();
+        syncStonePositions();
+      });
+
+      boardSizeSelect.addEventListener("change", (evt) => {
+        setBoardSize(parseInt(evt.target.value, 10));
+      });
+
+      resetBtn.addEventListener("click", () => resetBoard(false));
+
+      qrToggle.addEventListener("click", toggleQr);
+      qrOverlay.addEventListener("click", toggleQr);
+
+      setupPeer();
+    }
+
+    init();
+  </script>
+</body>
+</html>

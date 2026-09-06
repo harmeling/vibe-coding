@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>vibe-coding</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: system-ui, sans-serif;
+      background: #f5f1e8;
+      color: #2b2b2b;
+    }
+    main {
+      max-width: 32rem;
+      padding: 2rem;
+    }
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 0.25rem;
+    }
+    p.tagline {
+      margin-top: 0;
+      color: #6b6b6b;
+    }
+    ul {
+      list-style: none;
+      padding: 0;
+      margin: 1.5rem 0 0;
+    }
+    li {
+      margin-bottom: 0.75rem;
+    }
+    a.app {
+      display: block;
+      padding: 0.75rem 1rem;
+      border: 1px solid #d8d0bd;
+      background: #fff;
+      color: #2b2b2b;
+      text-decoration: none;
+    }
+    a.app:hover {
+      background: #efe9db;
+    }
+    a.app strong {
+      display: block;
+    }
+    a.app span {
+      font-size: 0.875rem;
+      color: #6b6b6b;
+    }
+    li.pending a.app {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>vibe-coding</h1>
+    <p class="tagline">A collection of small, single-purpose web apps.</p>
+    <ul>
+      <li>
+        <a class="app" href="goban/">
+          <strong>Goban</strong>
+          <span>Peer-to-peer physical Go board simulator.</span>
+        </a>
+      </li>
+      <li class="pending">
+        <a class="app" href="kanshu/">
+          <strong>Kanshū (監守)</strong>
+          <span>Camera-based Go game recorder — coming soon.</span>
+        </a>
+      </li>
+    </ul>
+  </main>
+</body>
+</html>

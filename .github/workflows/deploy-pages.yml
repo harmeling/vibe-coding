@@ -1,0 +1,51 @@
+name: Deploy Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assemble site
+        run: |
+          set -e
+          mkdir -p _site/goban
+          cp index.html _site/index.html
+          cp goban/index.html _site/goban/index.html
+
+          if [ -f kanshu/package.json ]; then
+            echo "Building kanshu..."
+            (cd kanshu && npm ci && npm run build)
+            mkdir -p _site/kanshu
+            cp -r kanshu/dist/. _site/kanshu/
+          else
+            echo "kanshu has no package.json yet, skipping"
+          fi
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

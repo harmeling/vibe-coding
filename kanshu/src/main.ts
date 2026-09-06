@@ -9,8 +9,8 @@ import { advance, classifyBuffer, createInitialState, intersectionPoints, sample
 import type { GridEngineState } from './grid/gridEngine';
 import { createEmptyBoard, diffBoard } from './game/boardState';
 import type { BoardDiffResult } from './game/boardState';
-import { buildSgf } from './game/sgf';
-import { formatBoardCoordinate } from './game/coords';
+import { buildSgf, parseSgf } from './game/sgf';
+import { replayTurns } from './game/replay';
 import { formatMoveLog } from './game/moveLog';
 import type { MoveLogEntry } from './game/moveLog';
 import {
@@ -98,16 +98,15 @@ function initApp(): void {
   let moveNumbers: (number | null)[] = new Array(gridSize).fill(null);
   const turns: BoardDiffResult[] = [];
   const moveLogEntries: MoveLogEntry[] = [];
-  let moveCounter = 0;
   let nextColor: StoneColor = 'black';
   let blackCaptures = 0;
   let whiteCaptures = 0;
   let sgfText = loadSgfText() ?? '';
   let lastMoveDescription: string | null = null;
-  // Once the raw SGF has been hand-edited, the automatic camera-driven rebuild stops
-  // overwriting it — an expert user editing SGF directly (e.g. adding player names) owns it
-  // from that point on, until Reset. No parsing/merging: what they type is what gets saved.
-  let sgfManuallyEdited = false;
+  // Custom game-info properties (e.g. hand-added PB[]/PW[] player names) found by parseSgf
+  // after a hand-edit; undefined means "use buildSgf's default header". Preserved across later
+  // regenerations so a hand-edit's metadata survives new camera-detected moves.
+  let sgfHeader: string | undefined = undefined;
 
   function persistSettings(): void {
     settings = {
@@ -144,30 +143,47 @@ function initApp(): void {
     downloadBtn.href = downloadUrl;
   }
 
+  function formatLastMoveDescription(entry: MoveLogEntry): string {
+    return `${entry.color === 'black' ? 'Black' : 'White'} played ${entry.coordinate}`;
+  }
+
+  /**
+   * Recomputes all derived state (board, move numbers, captures, HUD, SGF text) from `turns`
+   * by replaying it from scratch. Both the camera pipeline (push one new turn) and a
+   * successful hand-edit of the SGF (replace `turns` by re-parsing) call this afterwards, so
+   * the two ways of changing history always converge on the same result.
+   */
+  function applyReplay(): void {
+    const replay = replayTurns(turns, boardSize);
+    internalBoard = replay.board;
+    moveNumbers = replay.moveNumbers;
+    moveLogEntries.length = 0;
+    moveLogEntries.push(...replay.moveLogEntries);
+    blackCaptures = replay.blackCaptures;
+    whiteCaptures = replay.whiteCaptures;
+    nextColor = replay.nextColor;
+    lastMoveDescription =
+      replay.moveLogEntries.length > 0 ? formatLastMoveDescription(replay.moveLogEntries[replay.moveLogEntries.length - 1]) : null;
+
+    sgfText = buildSgf(turns, boardSize, sgfHeader);
+    saveSgfText(sgfText);
+    updateDownloadLink();
+    renderDigitalBoard(boardCanvas, internalBoard, boardSize, moveNumbers);
+    renderMoveLog();
+    refreshHud();
+  }
+
   function applyBoardSize(newSize: BoardSize): void {
     boardSize = newSize;
     gridSize = boardSize * boardSize;
     gridState = createInitialState(gridSize);
     baselines = null;
-    internalBoard = createEmptyBoard(gridSize);
-    moveNumbers = new Array(gridSize).fill(null);
     turns.length = 0;
-    moveLogEntries.length = 0;
-    moveCounter = 0;
-    nextColor = 'black';
-    blackCaptures = 0;
-    whiteCaptures = 0;
-    lastMoveDescription = null;
-    sgfText = '';
-    sgfManuallyEdited = false;
+    sgfHeader = undefined;
     sgfEditor.value = '';
     sgfEditor.hidden = true;
     editSgfBtn.textContent = 'Edit raw SGF';
-    saveSgfText(sgfText);
-    updateDownloadLink();
-    refreshHud();
-    renderMoveLog();
-    renderDigitalBoard(boardCanvas, internalBoard, boardSize, moveNumbers);
+    applyReplay();
   }
 
   function drawPreviewFrame(): void {
@@ -219,36 +235,15 @@ function initApp(): void {
     const diff = diffBoard(internalBoard, visualBoard);
     if (diff.placements.length === 0 && diff.removals.length === 0) return;
 
-    internalBoard = [...visualBoard];
     turns.push(diff);
+    applyReplay();
 
-    for (const removal of diff.removals) {
-      moveNumbers[removal.index] = null;
-      if (removal.color === 'black') blackCaptures++;
-      else whiteCaptures++;
-    }
-
+    // Announce/click only for what THIS tick added, not the whole replayed history.
     diff.placements.forEach((placement, i) => {
-      moveCounter++;
-      moveNumbers[placement.index] = moveCounter;
-      const coordinate = formatBoardCoordinate(placement.index, boardSize);
-      // Captures ride along on the first placement of this diff, same convention as buildSgf.
       const capturedCount = i === 0 ? diff.removals.length : 0;
-      lastMoveDescription = `${placement.color === 'black' ? 'Black' : 'White'} played ${coordinate}`;
-      moveLogEntries.push({ number: moveCounter, color: placement.color, coordinate, capturedCount });
       speak(buildMoveAnnouncement(placement.color, placement.index, boardSize, capturedCount), settings.voiceAnnouncements);
-      nextColor = placement.color === 'black' ? 'white' : 'black';
     });
-
-    if (!sgfManuallyEdited) {
-      sgfText = buildSgf(turns, boardSize);
-      saveSgfText(sgfText);
-      updateDownloadLink();
-    }
     playClick(settings.clickSound);
-    renderDigitalBoard(boardCanvas, internalBoard, boardSize, moveNumbers);
-    renderMoveLog();
-    refreshHud();
   }
 
   function stopAutoDetect(): void {
@@ -389,17 +384,37 @@ function initApp(): void {
     }
   });
 
-  sgfEditor.addEventListener('input', () => {
-    sgfManuallyEdited = true;
-    sgfText = sgfEditor.value;
-    saveSgfText(sgfText);
-    updateDownloadLink();
+  // Fires on blur (not every keystroke) so incomplete-bracket typing mid-edit never triggers a
+  // parse attempt. On success, the edited text becomes the new authoritative `turns` — so
+  // deleting a move node here really does undo it, and later camera-detected moves keep
+  // appending to this same history afterwards, same as if they'd always been there.
+  sgfEditor.addEventListener('change', () => {
+    try {
+      const parsed = parseSgf(sgfEditor.value, boardSize);
+      turns.length = 0;
+      turns.push(...parsed.turns);
+      sgfHeader = parsed.header || undefined;
+      applyReplay();
+      statusEl.textContent = 'Board updated from your SGF edit.';
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      statusEl.textContent = `Could not parse the edited SGF: ${message}`;
+    }
   });
 
-  renderDigitalBoard(boardCanvas, internalBoard, boardSize, moveNumbers);
-  refreshHud();
-  renderMoveLog();
-  updateDownloadLink();
+  // Restore from whatever SGF was last persisted, by parsing it back into turns rather than
+  // just redisplaying the raw text -- this also restores the board/HUD/move-log across a
+  // reload, which just redisplaying the text wouldn't.
+  if (sgfText) {
+    try {
+      const parsed = parseSgf(sgfText, boardSize);
+      turns.push(...parsed.turns);
+      sgfHeader = parsed.header || undefined;
+    } catch {
+      // Corrupt/incompatible persisted SGF; start fresh rather than crash on load.
+    }
+  }
+  applyReplay();
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {

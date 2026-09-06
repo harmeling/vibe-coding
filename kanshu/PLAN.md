@@ -42,11 +42,19 @@ smoke tests, and only the very last step needs an actual physical board.
       capture, a placement that captures neighbors in the same diff, direct color swap. No
       hardware needed.
 
-- [x] **Step 4 — SGF builder** (`src/game/sgf.ts`). Builds SGF text from a list of confirmed
-      `BoardDiffResult` turns (hand-rolled, no external library); captures ride along as `AE`
-      on the placement node, or their own node if there was no placement.
-      *Verified:* Vitest (`sgf.test.ts`, 6 tests) — coordinate mapping, empty game, alternating
-      placements, capture-attached-to-placement, removal-only node. No hardware needed.
+- [x] **Step 4 — SGF builder** (`src/game/sgf.ts`, `src/game/replay.ts`). Builds SGF text from a
+      list of confirmed `BoardDiffResult` turns (hand-rolled, no external library); captures
+      ride along as `AE` on the placement node, or their own node if there was no placement.
+      `parseSgf` is the inverse (text → turns), lenient and header-preserving so a hand-edit can
+      add e.g. `PB[]`/`PW[]` player names without them being dropped on the next regeneration.
+      `replayTurns` reconstructs board/HUD/move-log state from a turns list from scratch, so
+      the camera pipeline (append one turn) and a hand-edit (replace all turns) always converge
+      on the same derived state — see `src/main.ts`'s `applyReplay`.
+      *Verified:* Vitest (`sgf.test.ts` + `replay.test.ts`, 15 tests) — coordinate mapping,
+      empty game, alternating placements, capture-attached-to-placement, removal-only node,
+      round-trip build→parse, header preservation, lenient missing-header parsing,
+      out-of-range-coordinate error, and replay recomputing captured color from board state
+      rather than trusting a placeholder. No hardware needed.
 
 - [x] **Step 5 — Storage layer** (`src/storage.ts`). `localStorage` wrappers (`storage`
       parameter, defaults to the real `localStorage`) for calibration matrix, settings
@@ -94,11 +102,13 @@ smoke tests, and only the very last step needs an actual physical board.
       (turn/last move/captures), synthesized click sound (WebAudio, no asset file), optional
       `SpeechSynthesis` announcements (off by default, toggle in the header), a read-only
       numbered move list below the board, and an "Edit raw SGF" toggle exposing the SGF text
-      directly for hand-editing (e.g. adding player names) — deliberately unparsed/unvalidated,
-      for an expert user; once edited, the automatic per-move SGF rebuild stops touching it
-      until Reset.
-      *Verified:* Vitest (`hud.test.ts`, `speech.test.ts`, `moveLog.test.ts`, 9 tests) for the
-      pure formatting helpers. *Implemented, not yet manually verified* for the actual canvas
+      directly for hand-editing (add player names, delete a move node to undo it, ...) — parsed
+      on blur via `parseSgf`/`replayTurns` (Step 4), for an expert user, so a parse error just
+      shows a status message rather than silently corrupting state. Camera-detected moves keep
+      appending to the (possibly hand-edited) history afterwards, same as before an edit.
+      *Verified:* Vitest (`hud.test.ts`, `speech.test.ts`, `moveLog.test.ts`, plus Step 4's
+      `sgf.test.ts`/`replay.test.ts` covering the parse/replay this editor relies on) for the
+      pure logic. *Implemented, not yet manually verified* for the actual canvas
       rendering/sound/speech playback/SGF editor — needs the same browser smoke test as
       Steps 6-7.
 

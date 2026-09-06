@@ -36,8 +36,9 @@ Non-negotiable constraints from `spec.md`:
 
 All of `PLAN.md`'s Steps 0-9 are implemented; Step 10 (real-board validation/threshold tuning)
 is intentionally postponed until a physical board is available for testing. The pure-logic
-layer (homography, warp, grid classification/debounce, board diffing, SGF, storage, corner
-ordering, auto-detection — Steps 1-6) is fully covered by Vitest (49 tests). The browser-glue
+layer (homography, warp, grid classification/debounce, board diffing, SGF parse/build, replay,
+storage, corner ordering, auto-detection — Steps 1-6) is fully covered by Vitest (63 tests). The
+browser-glue
 layer (camera, calibration UI,
 pipeline wiring, canvas rendering, sound/speech, PWA manifest — Steps 6-9) type-checks and
 builds cleanly but **has not been manually smoke-tested with a live camera by anyone yet** —
@@ -54,13 +55,21 @@ The legacy `calibrate.py`/`spec-old.md` Python prototype is reference-only, not 
   or board moves after calibrating, the cached warp silently becomes wrong — there's no
   drift detection or re-localization. Matches the spec's assumption of a fixed camera position
   for the session; revisit only if real-world testing shows this is too fragile.
-- **No distinction between a capture and a manual correction ("undo").** `diffBoard` (Step 3)
+- **No automatic distinction between a capture and a manual correction.** `diffBoard` (Step 3)
   treats every stone→empty transition as a removal and records it — correctly, for actual
-  captures. But it can't tell a legitimate capture apart from someone picking up a
-  misplaced stone to fix it; both look identical from the camera's perspective. There's no
-  explicit undo command. The live board state stays correct either way (it's diff-based), but
-  the recorded SGF will show "placed, then later removed" rather than "this move never
-  happened" for a manual correction.
+  captures. It can't tell a legitimate capture apart from someone picking up a misplaced stone
+  to fix it; both look identical from the camera's perspective. There's no automatic undo.
+  **Manual undo does exist** via "Edit raw SGF" (`parseSgf` → `replayTurns`, see
+  `src/game/{sgf,replay}.ts`): deleting a move node from the text and blurring the field
+  re-derives the board/HUD/move-log from the edited history, and later camera-detected moves
+  keep appending to that same (edited) history afterwards. Caveat: if the real stone is still
+  physically on the board, the next snapshot will just notice the discrepancy and re-record it
+  — this system has no way to know you *intend* it gone versus a camera glitch. Another caveat:
+  editing is DOM-state-only (no debounce/lock against the background analysis timer), so
+  leaving the editor open for a long time while the camera is actively also recording moves
+  can lose whichever change is applied second on blur — fine for the intended use (tweak
+  metadata or fix history between moves), a known rough edge for editing concurrently with
+  active play.
 
 ## Environment / commands
 

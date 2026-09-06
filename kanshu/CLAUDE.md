@@ -8,7 +8,9 @@ A non-intrusive Go game recorder that runs entirely as a webpage. It watches a s
 of a physical Go board (via laptop or phone camera), warps it to a top-down view, detects stone
 placements/captures via periodic grid-based intensity sampling, and exports the game to SGF.
 
-The full design is in `spec.md` — read it before making architectural changes. An earlier
+The full design is in `spec.md` — read it before making architectural changes. `PLAN.md` is the
+step-by-step build sequence derived from it — work through it in order, one checked-off step at
+a time, rather than implementing ahead. An earlier
 Python/OpenCV desktop prototype (`calibrate.py`, `spec-old.md`) explored the same problem but is
 no longer being developed; the project is being rebuilt as a browser-only app. Keep `calibrate.py`
 and `spec-old.md` around as algorithmic reference, but don't extend them.
@@ -32,14 +34,23 @@ Non-negotiable constraints from `spec.md`:
 
 ## Current state
 
-Pre-implementation: only `spec.md` (current design) and the legacy `calibrate.py`/`spec-old.md`
-(old Python prototype) exist. No Vite project, `package.json`, or `src/` tree has been scaffolded
-yet — don't assume any module names or APIs beyond what's in `spec.md` until they're built.
+Scaffolded (Vite + TypeScript + Vitest, no framework) but not yet implemented beyond a
+placeholder `src/main.ts`. Build it by following `PLAN.md` **one step at a time, in order** —
+each step lists its own verification and whether it needs real hardware. Don't assume any module
+or API beyond what a completed step actually added.
+
+The legacy `calibrate.py`/`spec-old.md` Python prototype is reference-only, not to be extended.
 
 ## Environment / commands
 
-Not yet scaffolded. Once the Vite+TypeScript project exists, this section should be updated with
-the actual `npm install` / `npm run dev` / `npm run build` / test commands.
+```bash
+npm install       # first time / after dependency changes
+npm run dev       # local dev server
+npm run build     # tsc --noEmit && vite build
+npm run test      # vitest run (single pass)
+npm run test:watch
+npm run typecheck # tsc --noEmit only
+```
 
 The legacy Python prototype still runs via:
 

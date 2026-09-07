@@ -1,4 +1,5 @@
 import { listVideoInputDevices, startCamera, stopCamera } from './camera';
+import type { CameraOptions } from './camera';
 import { captureVideoFrame, drawPixelBuffer } from './frame';
 import { detectBoardQuad } from './calibration/autoDetect';
 import type { DetectedQuad } from './calibration/autoDetect';
@@ -61,6 +62,13 @@ function isBoardSize(n: number): n is BoardSize {
   return n === 9 || n === 13 || n === 19;
 }
 
+/** Turns the merged camera-select value into the deviceId/facingMode pair `startCamera` wants. */
+function resolveCameraSelection(value: string): CameraOptions {
+  if (value === 'facing:user') return { facingMode: 'user' };
+  if (value === '') return { facingMode: 'environment' };
+  return { deviceId: value };
+}
+
 function initApp(): void {
   const video = byId<HTMLVideoElement>('video');
   const liveCanvas = byId<HTMLCanvasElement>('liveCanvas');
@@ -72,7 +80,6 @@ function initApp(): void {
   const boardSizeSelect = byId<HTMLSelectElement>('boardSizeSelect');
   const intervalInput = byId<HTMLInputElement>('snapshotInterval');
   const cameraSelect = byId<HTMLSelectElement>('cameraSelect');
-  const facingSelect = byId<HTMLSelectElement>('facingMode');
   const voiceToggle = byId<HTMLInputElement>('voiceToggle');
   const soundToggle = byId<HTMLInputElement>('soundToggle');
   const hudTurn = byId<HTMLElement>('hudTurn');
@@ -85,8 +92,7 @@ function initApp(): void {
   let settings = loadSettings();
   boardSizeSelect.value = String(settings.boardSize);
   intervalInput.value = String(Math.round(settings.snapshotIntervalMs / 1000));
-  facingSelect.value = settings.cameraFacingMode;
-  cameraSelect.value = settings.cameraDeviceId;
+  cameraSelect.value = settings.cameraSelection;
   voiceToggle.checked = settings.voiceAnnouncements;
   soundToggle.checked = settings.clickSound;
 
@@ -125,13 +131,12 @@ function initApp(): void {
       boardSize,
       voiceAnnouncements: voiceToggle.checked,
       clickSound: soundToggle.checked,
-      cameraFacingMode: facingSelect.value === 'user' ? 'user' : 'environment',
-      cameraDeviceId: cameraSelect.value,
+      cameraSelection: cameraSelect.value,
     };
     saveSettings(settings);
   }
 
-  /** (Re-)populates the camera dropdown; labels only show up once permission has been granted. */
+  /** (Re-)populates the camera dropdown; device labels only show up once permission is granted. */
   async function refreshCameraList(): Promise<void> {
     const previousSelection = cameraSelect.value;
     let devices: MediaDeviceInfo[] = [];
@@ -141,7 +146,8 @@ function initApp(): void {
       return; // enumerateDevices itself failing is rare and not worth surfacing to the user
     }
 
-    cameraSelect.innerHTML = '<option value="">Auto (default camera)</option>';
+    cameraSelect.innerHTML =
+      '<option value="">Auto (rear-facing default)</option><option value="facing:user">Front-facing</option>';
     devices.forEach((device, i) => {
       const option = document.createElement('option');
       option.value = device.deviceId;
@@ -149,10 +155,11 @@ function initApp(): void {
       cameraSelect.appendChild(option);
     });
 
-    // Restore the previous selection if it's still in the list (e.g. after a device-change
-    // event), otherwise fall back to whatever was last persisted.
-    const restoreTo = devices.some((d) => d.deviceId === previousSelection) ? previousSelection : settings.cameraDeviceId;
-    cameraSelect.value = devices.some((d) => d.deviceId === restoreTo) ? restoreTo : '';
+    // Restore the previous selection if it's still valid (the two static options always are;
+    // a specific device might have been unplugged), otherwise fall back to what was persisted.
+    const isValid = (value: string) => value === '' || value === 'facing:user' || devices.some((d) => d.deviceId === value);
+    const restoreTo = isValid(previousSelection) ? previousSelection : settings.cameraSelection;
+    cameraSelect.value = isValid(restoreTo) ? restoreTo : '';
   }
 
   function setPhase(next: AppPhase): void {
@@ -367,7 +374,7 @@ function initApp(): void {
   function handleStartCamera(): void {
     startBtn.disabled = true;
     persistSettings();
-    startCamera(video, { facingMode: settings.cameraFacingMode, deviceId: settings.cameraDeviceId || undefined })
+    startCamera(video, resolveCameraSelection(settings.cameraSelection))
       .then((mediaStream) => {
         stream = mediaStream;
         if (previewRafHandle === null) previewRafHandle = requestAnimationFrame(drawPreviewFrame);
@@ -397,7 +404,7 @@ function initApp(): void {
     stream = null;
     video.srcObject = null;
 
-    startCamera(video, { facingMode: settings.cameraFacingMode, deviceId: settings.cameraDeviceId || undefined })
+    startCamera(video, resolveCameraSelection(settings.cameraSelection))
       .then((mediaStream) => {
         stream = mediaStream;
         void refreshCameraList();
@@ -448,7 +455,6 @@ function initApp(): void {
   });
 
   cameraSelect.addEventListener('change', handleCameraChange);
-  facingSelect.addEventListener('change', persistSettings);
   voiceToggle.addEventListener('change', persistSettings);
   soundToggle.addEventListener('change', persistSettings);
 

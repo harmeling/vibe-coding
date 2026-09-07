@@ -1,7 +1,7 @@
 import type { BoardSize, Matrix3x3, Point } from './types';
 
 const NAMESPACE = 'kanshu';
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 interface StoredEnvelope<T> {
   version: number;
@@ -60,9 +60,12 @@ export interface Settings {
   boardSize: BoardSize;
   voiceAnnouncements: boolean;
   clickSound: boolean;
-  cameraFacingMode: 'user' | 'environment';
-  /** A specific camera's deviceId from `listVideoInputDevices`, or '' for "no preference". */
-  cameraDeviceId: string;
+  /**
+   * One merged camera choice: '' for "auto/rear-facing default", 'facing:user' for "front-facing
+   * (auto-detect)", or a specific deviceId from `listVideoInputDevices`. See
+   * `resolveCameraSelection` in main.ts for how this turns into `CameraOptions`.
+   */
+  cameraSelection: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -70,8 +73,7 @@ export const DEFAULT_SETTINGS: Settings = {
   boardSize: 19,
   voiceAnnouncements: false,
   clickSound: true,
-  cameraFacingMode: 'environment',
-  cameraDeviceId: '',
+  cameraSelection: '',
 };
 
 export function saveSettings(settings: Settings, storage?: Storage): void {

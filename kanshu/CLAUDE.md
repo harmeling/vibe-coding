@@ -105,9 +105,10 @@ UI/HUD update + optional spoken announcement.
 
 1. **Calibration** — `pointerdown`-based 4-corner selection on the live `getUserMedia` feed,
    homography via hand-rolled DLT, warp cached and persisted to `localStorage` (replaces
-   `config.json` from the old prototype). Which physical camera to use (built-in, external USB,
-   a phone connected as a webcam) is a separate, persisted choice (`listVideoInputDevices` in
-   `src/camera.ts`) from the front/rear facing preference; switching cameras forces
+   `config.json` from the old prototype). One merged, persisted "Camera" choice covers "auto
+   (rear-facing default)", "front-facing", and every enumerated real device — built-in, external
+   USB, a phone connected as a webcam (`listVideoInputDevices`/`resolveCameraSelection` in
+   `src/camera.ts`/`src/main.ts`) — rather than two separate controls. Switching cameras forces
    recalibration, since a different camera is a different physical framing.
 2. **Grid engine** — on a timer (default 1s), first skips the tick entirely if
    `isMotionDetected` says the frame has changed too much since the last one (hand likely over

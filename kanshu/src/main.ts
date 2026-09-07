@@ -1,4 +1,4 @@
-import { startCamera, stopCamera } from './camera';
+import { listVideoInputDevices, startCamera, stopCamera } from './camera';
 import { captureVideoFrame, drawPixelBuffer } from './frame';
 import { detectBoardQuad } from './calibration/autoDetect';
 import type { DetectedQuad } from './calibration/autoDetect';
@@ -71,6 +71,7 @@ function initApp(): void {
   const downloadBtn = byId<HTMLAnchorElement>('downloadBtn');
   const boardSizeSelect = byId<HTMLSelectElement>('boardSizeSelect');
   const intervalInput = byId<HTMLInputElement>('snapshotInterval');
+  const cameraSelect = byId<HTMLSelectElement>('cameraSelect');
   const facingSelect = byId<HTMLSelectElement>('facingMode');
   const voiceToggle = byId<HTMLInputElement>('voiceToggle');
   const soundToggle = byId<HTMLInputElement>('soundToggle');
@@ -85,6 +86,7 @@ function initApp(): void {
   boardSizeSelect.value = String(settings.boardSize);
   intervalInput.value = String(Math.round(settings.snapshotIntervalMs / 1000));
   facingSelect.value = settings.cameraFacingMode;
+  cameraSelect.value = settings.cameraDeviceId;
   voiceToggle.checked = settings.voiceAnnouncements;
   soundToggle.checked = settings.clickSound;
 
@@ -124,8 +126,33 @@ function initApp(): void {
       voiceAnnouncements: voiceToggle.checked,
       clickSound: soundToggle.checked,
       cameraFacingMode: facingSelect.value === 'user' ? 'user' : 'environment',
+      cameraDeviceId: cameraSelect.value,
     };
     saveSettings(settings);
+  }
+
+  /** (Re-)populates the camera dropdown; labels only show up once permission has been granted. */
+  async function refreshCameraList(): Promise<void> {
+    const previousSelection = cameraSelect.value;
+    let devices: MediaDeviceInfo[] = [];
+    try {
+      devices = await listVideoInputDevices();
+    } catch {
+      return; // enumerateDevices itself failing is rare and not worth surfacing to the user
+    }
+
+    cameraSelect.innerHTML = '<option value="">Auto (default camera)</option>';
+    devices.forEach((device, i) => {
+      const option = document.createElement('option');
+      option.value = device.deviceId;
+      option.textContent = device.label || `Camera ${i + 1}`;
+      cameraSelect.appendChild(option);
+    });
+
+    // Restore the previous selection if it's still in the list (e.g. after a device-change
+    // event), otherwise fall back to whatever was last persisted.
+    const restoreTo = devices.some((d) => d.deviceId === previousSelection) ? previousSelection : settings.cameraDeviceId;
+    cameraSelect.value = devices.some((d) => d.deviceId === restoreTo) ? restoreTo : '';
   }
 
   function setPhase(next: AppPhase): void {
@@ -340,10 +367,11 @@ function initApp(): void {
   function handleStartCamera(): void {
     startBtn.disabled = true;
     persistSettings();
-    startCamera(video, { facingMode: settings.cameraFacingMode })
+    startCamera(video, { facingMode: settings.cameraFacingMode, deviceId: settings.cameraDeviceId || undefined })
       .then((mediaStream) => {
         stream = mediaStream;
         if (previewRafHandle === null) previewRafHandle = requestAnimationFrame(drawPreviewFrame);
+        void refreshCameraList(); // labels are only populated once permission is granted
         const stored = loadCalibration();
         if (stored) startPipeline(stored);
         else startCalibrationFlow();
@@ -352,6 +380,37 @@ function initApp(): void {
         const message = err instanceof Error ? err.message : String(err);
         statusEl.textContent = `Could not start the camera: ${message}`;
         startBtn.disabled = false;
+      });
+  }
+
+  /**
+   * Switches to whichever camera is now selected. A different camera almost certainly has a
+   * different physical framing, so any existing calibration is invalidated and the app drops
+   * back into "Calibrate" for it — same reasoning as the "no camera-movement tracking" caveat
+   * in CLAUDE.md.
+   */
+  function handleCameraChange(): void {
+    persistSettings();
+    if (!stream) return; // nothing running yet; the new choice just applies on next Start
+    const wasActive = phase !== 'idle';
+    stopCamera(stream);
+    stream = null;
+    video.srcObject = null;
+
+    startCamera(video, { facingMode: settings.cameraFacingMode, deviceId: settings.cameraDeviceId || undefined })
+      .then((mediaStream) => {
+        stream = mediaStream;
+        void refreshCameraList();
+        if (wasActive) {
+          clearCalibration();
+          startCalibrationFlow();
+          statusEl.textContent = 'Camera switched — recalibrate for this camera.';
+        }
+      })
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err);
+        statusEl.textContent = `Could not switch camera: ${message}`;
+        setPhase('idle');
       });
   }
 
@@ -388,9 +447,15 @@ function initApp(): void {
     }
   });
 
+  cameraSelect.addEventListener('change', handleCameraChange);
   facingSelect.addEventListener('change', persistSettings);
   voiceToggle.addEventListener('change', persistSettings);
   soundToggle.addEventListener('change', persistSettings);
+
+  if (navigator.mediaDevices && 'ondevicechange' in navigator.mediaDevices) {
+    navigator.mediaDevices.addEventListener('devicechange', () => void refreshCameraList());
+  }
+  void refreshCameraList();
 
   editSgfBtn.addEventListener('click', () => {
     sgfEditor.hidden = !sgfEditor.hidden;

@@ -77,7 +77,11 @@ smoke tests, and only the very last step needs an actual physical board.
       (`orderCorners` sorts them, same sum/diff trick as the legacy `calibrate.py`'s
       `order_points`); a hand-rolled Sobel-edge auto-detector (`detectBoardQuad`) that
       continuously proposes a board quad (drawn as a dashed overlay) while calibrating, which
-      "Calibrate" accepts, or which manual corner clicks override.
+      "Calibrate" accepts, or which manual corner clicks override. A camera picker
+      (`listVideoInputDevices`) lists all available cameras (built-in, external USB, a phone
+      connected as a webcam) once permission is granted, persisted alongside the existing
+      front/rear facing preference; switching cameras while running drops back into
+      "Calibrate" since a different camera almost certainly has a different physical framing.
       *Verified:* Vitest (`orderCorners.test.ts`, `autoDetect.test.ts`, 5 tests) — reordering a
       shuffled click sequence, and `detectBoardQuad` finding known corners of a synthetic
       rectangle and a perspective-skewed trapezoid, plus a null result on a blank frame.
@@ -90,7 +94,10 @@ smoke tests, and only the very last step needs an actual physical board.
       **Do this smoke test yourself**: `npm run dev`, click "Start camera", watch for a dashed
       outline to appear over whatever the camera sees; try clicking "Calibrate" to accept it,
       and separately try clicking 4 corners manually in a scrambled order, confirming both
-      paths produce a plausible warped preview that survives a reload.
+      paths produce a plausible warped preview that survives a reload. Also, if more than one
+      camera is available, confirm the "Camera" dropdown lists them with real labels (not just
+      "Camera 1", "Camera 2") after the first successful start, and that picking a different one
+      switches the feed and drops back into "Calibrate".
 
 - [x] **Step 7 — Pipeline wiring** (`src/main.ts`). Timer loop (default every 1s, was 10s):
       frame capture → cached warp → motion check (skip the tick if `isMotionDetected`, e.g. a

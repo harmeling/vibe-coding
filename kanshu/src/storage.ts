@@ -61,6 +61,8 @@ export interface Settings {
   voiceAnnouncements: boolean;
   clickSound: boolean;
   cameraFacingMode: 'user' | 'environment';
+  /** A specific camera's deviceId from `listVideoInputDevices`, or '' for "no preference". */
+  cameraDeviceId: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -69,6 +71,7 @@ export const DEFAULT_SETTINGS: Settings = {
   voiceAnnouncements: false,
   clickSound: true,
   cameraFacingMode: 'environment',
+  cameraDeviceId: '',
 };
 
 export function saveSettings(settings: Settings, storage?: Storage): void {

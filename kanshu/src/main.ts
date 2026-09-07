@@ -62,9 +62,13 @@ function isBoardSize(n: number): n is BoardSize {
   return n === 9 || n === 13 || n === 19;
 }
 
-/** Turns the merged camera-select value into the deviceId/facingMode pair `startCamera` wants. */
+/**
+ * Turns the camera-select value into what `startCamera` wants: '' means no specific device has
+ * been chosen yet (or the browser hasn't enumerated any — enumerateDevices only returns useful,
+ * labeled entries after permission has been granted at least once), so fall back to a
+ * facingMode hint; anything else is a real deviceId from `listVideoInputDevices`.
+ */
 function resolveCameraSelection(value: string): CameraOptions {
-  if (value === 'facing:user') return { facingMode: 'user' };
   if (value === '') return { facingMode: 'environment' };
   return { deviceId: value };
 }
@@ -146,8 +150,7 @@ function initApp(): void {
       return; // enumerateDevices itself failing is rare and not worth surfacing to the user
     }
 
-    cameraSelect.innerHTML =
-      '<option value="">Auto (rear-facing default)</option><option value="facing:user">Front-facing</option>';
+    cameraSelect.innerHTML = '<option value="">Auto (default camera)</option>';
     devices.forEach((device, i) => {
       const option = document.createElement('option');
       option.value = device.deviceId;
@@ -155,9 +158,9 @@ function initApp(): void {
       cameraSelect.appendChild(option);
     });
 
-    // Restore the previous selection if it's still valid (the two static options always are;
-    // a specific device might have been unplugged), otherwise fall back to what was persisted.
-    const isValid = (value: string) => value === '' || value === 'facing:user' || devices.some((d) => d.deviceId === value);
+    // Restore the previous selection if it's still valid ("Auto" always is; a specific device
+    // might have been unplugged), otherwise fall back to what was persisted.
+    const isValid = (value: string) => value === '' || devices.some((d) => d.deviceId === value);
     const restoreTo = isValid(previousSelection) ? previousSelection : settings.cameraSelection;
     cameraSelect.value = isValid(restoreTo) ? restoreTo : '';
   }

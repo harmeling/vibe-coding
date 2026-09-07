@@ -77,12 +77,14 @@ smoke tests, and only the very last step needs an actual physical board.
       (`orderCorners` sorts them, same sum/diff trick as the legacy `calibrate.py`'s
       `order_points`); a hand-rolled Sobel-edge auto-detector (`detectBoardQuad`) that
       continuously proposes a board quad (drawn as a dashed overlay) while calibrating, which
-      "Calibrate" accepts, or which manual corner clicks override. One merged "Camera" picker
-      (`listVideoInputDevices` + `resolveCameraSelection`) covers "auto (rear-facing default)",
-      "front-facing", and every enumerated real device (built-in, external USB, a phone
-      connected as a webcam) once permission is granted — not two separate controls; switching
-      cameras while running drops back into "Calibrate" since a different camera almost
-      certainly has a different physical framing.
+      "Calibrate" accepts, or which manual corner clicks override. One "Camera" picker
+      (`listVideoInputDevices` + `resolveCameraSelection`) auto-generates its options entirely
+      from querying the hardware (`enumerateDevices`) — built-in, external USB, a phone
+      connected as a webcam, each with its real label — with a single non-hardware "Auto
+      (default camera)" fallback only for the moment before permission has ever been granted
+      (when `enumerateDevices` has nothing useful to return yet). Switching cameras while
+      running drops back into "Calibrate" since a different camera almost certainly has a
+      different physical framing.
       *Verified:* Vitest (`orderCorners.test.ts`, `autoDetect.test.ts`, 5 tests) — reordering a
       shuffled click sequence, and `detectBoardQuad` finding known corners of a synthetic
       rectangle and a perspective-skewed trapezoid, plus a null result on a blank frame.

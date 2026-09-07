@@ -105,11 +105,13 @@ UI/HUD update + optional spoken announcement.
 
 1. **Calibration** — `pointerdown`-based 4-corner selection on the live `getUserMedia` feed,
    homography via hand-rolled DLT, warp cached and persisted to `localStorage` (replaces
-   `config.json` from the old prototype). One merged, persisted "Camera" choice covers "auto
-   (rear-facing default)", "front-facing", and every enumerated real device — built-in, external
-   USB, a phone connected as a webcam (`listVideoInputDevices`/`resolveCameraSelection` in
-   `src/camera.ts`/`src/main.ts`) — rather than two separate controls. Switching cameras forces
-   recalibration, since a different camera is a different physical framing.
+   `config.json` from the old prototype). The "Camera" choice is auto-generated from querying
+   the hardware (`listVideoInputDevices`/`resolveCameraSelection` in
+   `src/camera.ts`/`src/main.ts`) — built-in, external USB, a phone connected as a webcam, each
+   with its real label — plus a single non-hardware "Auto (default camera)" fallback for the
+   moment before permission has ever been granted (labels/enumeration aren't reliable before
+   that). Switching cameras forces recalibration, since a different camera is a different
+   physical framing.
 2. **Grid engine** — on a timer (default 1s), first skips the tick entirely if
    `isMotionDetected` says the frame has changed too much since the last one (hand likely over
    the board); otherwise samples each grid intersection of the warped frame against a captured

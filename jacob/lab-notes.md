@@ -21,7 +21,7 @@ A running log of what was done, decided and learned, so work can continue on any
   - P2P lookup and the public shelf directory are postponed.
 
 **Next**
-1. Stefan is adding real shelf photos to `jacob/test-photos/` (folder name suggested; check where they actually landed).
+1. ~~Test photos~~: done. 10 iPhone photos of real shelves are in `jacob/test-photos/` (IMG_2283–2292, ~3 MB each). GPS metadata was stripped before pushing, because the repo is public. **Strip GPS from any future photos too** (`exiftool -overwrite_original -gps:all= …`).
 2. **Step 0:** build `jacob/prototype/shelf-ocr.html` and measure spines detected / read / matched per photo. Log the results here.
 3. Then Round 1, steps 1–8 in plan.md §6.
 

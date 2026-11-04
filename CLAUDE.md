@@ -13,6 +13,9 @@ and `cd` into it before running anything project-specific.
   build step). See `goban/spec.md` for the full requirements (this is the design doc, written as a
   running list of feature requests — read it before making UI/behavior changes, since later
   numbered sections amend or override earlier ones).
+- **`jacob/`** — Local-first personal library manager (barcode + shelf-photo input, sharing
+  without a server). Planning stage: **read `jacob/lab-notes.md` first** (progress log, kept
+  up to date across machines), then `jacob/plan.md` (spec; §0 lists the decisions made).
 - **`kanshu/`** (監守) — Browser-based Go game recorder that watches a physical board via camera
   and exports SGF. Has its own `kanshu/CLAUDE.md` with detailed architecture and constraints —
   **read that file before working in `kanshu/`**, it takes precedence over anything below for that

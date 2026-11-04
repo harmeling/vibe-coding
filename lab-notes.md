@@ -26,3 +26,13 @@ Running log of agent-session setup and activity for this repo, on the
 - Attach: `tmux attach -t vibe-coding-1`
 - Resume (after a kill or restart): use the `resume-agent` skill.
 - Cancel: `tmux kill-session -t vibe-coding-1`
+
+## 2026-11-04 — switched to working directly on `main`, no `agent` branch
+
+- User decided this repo doesn't need the usual `agent`/`main` split —
+  work happens directly on `main` from here on.
+- Merged `agent`'s two commits (this file's creation, the compute-policy
+  addition to `CLAUDE.md`) into `main` (clean auto-merge — jacob's
+  concurrent commits touched a different part of `CLAUDE.md`), pushed,
+  and deleted the `agent` branch both locally and on `origin`.
+- Going forward: commit and push straight to `main` for this repo.

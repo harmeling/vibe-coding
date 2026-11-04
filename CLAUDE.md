@@ -66,3 +66,20 @@ cd kanshu
 source .venv/bin/activate
 python calibrate.py
 ```
+
+## Compute policy (shared node)
+
+Every spawned agent session for this repo runs on `ls8-slurm`, a **shared
+login node** — only 8 CPU cores, ~20 concurrent users, no GPU. Never run
+heavy computation directly there: anything that would peg a core for more
+than a few seconds. Before starting anything nontrivial, check the node
+isn't already loaded (`top`, or `uptime` for load average against 8 cores).
+These are small static-site/browser projects, so this should rarely come
+up — but for any CPU-heavy task (e.g. a build step), submit it via
+`srun`/`sbatch` to the SLURM scheduler instead:
+- Check `sinfo -N -o "%N %P %T %C %m %G"` for what's free.
+- Ask the user for memory/time-limit requirements if the task didn't
+  already specify them.
+- Log each submitted job (command, job ID, purpose) in `lab-notes.md`.
+- A SLURM time-limit kill only ends that compute job — it does not affect
+  this claude session.
